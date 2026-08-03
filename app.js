@@ -4675,7 +4675,7 @@ const app = {
       const itemsArr = typeof inv.items === 'string' ? JSON.parse(inv.items || '[]') : (inv.items || []);
       const escapedItems = itemsArr.map(i => i.qty + 'x ' + this.escapeHTML(i.name)).join(', ');
       combinedSchedules.push({
-        _rawDate: inv.cateringDate,
+        _rawDate: inv.cateringDate.includes('T') ? inv.cateringDate : `${inv.cateringDate}T07:00:00`,
         title: `${this.escapeHTML(inv.customerName || 'Unknown')} - ${this.escapeHTML(inv.invoiceNumber)}`,
         subtitle: `Vendor: ${this.escapeHTML(inv.vendor || '-')}`,
         details: escapedItems ? `Items: ${escapedItems}` : '',
@@ -4692,7 +4692,7 @@ const app = {
       combinedSchedules.push({
         _isStandalone: true,
         _rawId: sch.id,
-        _rawDate: sch.date,
+        _rawDate: sch.date.includes('T') ? sch.date : `${sch.date}T07:00:00`,
         title: this.escapeHTML(sch.title || 'Untitled') + draftBadge,
         subtitle: `<i data-lucide="map-pin" style="width:14px; vertical-align:middle;"></i> ${this.escapeHTML(sch.location || '-')}`,
         details: sch.notes ? `Catatan: ${this.escapeHTML(sch.notes)}` : '',
@@ -6638,7 +6638,7 @@ const app = {
         return new Date(year, month, day, hours, minutes, seconds);
       }
       
-      return new Date(year, month, day);
+      return new Date(year, month, day, 7, 0, 0);
     }
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
