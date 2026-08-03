@@ -2056,32 +2056,69 @@ const app = {
     }
   },
 
+  generateNextInvoiceNumber(date = new Date(), pendingInvoices = []) {
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const prefix = `PC-INV-${mm}-${yy}-`;
+    
+    let maxSeq = 0;
+    const checkInvoiceList = (list) => {
+      if (list && Array.isArray(list)) {
+        list.forEach(inv => {
+          if (inv.invoiceNumber && inv.invoiceNumber.startsWith(prefix)) {
+            const parts = inv.invoiceNumber.split('-');
+            if (parts.length === 5) {
+              const seq = parseInt(parts[4]);
+              if (!isNaN(seq) && seq > maxSeq) {
+                maxSeq = seq;
+              }
+            }
+          }
+        });
+      }
+    };
+
+    checkInvoiceList(this.data.invoices);
+    checkInvoiceList(pendingInvoices);
+    
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  },
+
   downloadInvoiceTemplate() {
     try {
       const headers = [
-        ['customerName', 'vendor', 'cateringLocation', 'cateringCity', 'cateringDate', 'status', 'notes', 'items', 'subtotalAmount', 'discountType', 'discountValue', 'additionalFee', 'paidAmount', 'paymentHistory']
+        ['No Faktur', 'Nama Pelanggan', 'Vendor', 'Lokasi', 'Tanggal', 'Nama Menu', 'Qty', 'Harga Satuan', 'Dibayar', 'Status']
       ];
-      // Dummy data row as an example
-      const dummyRow = [
+      const sampleRow1 = [
+        'PC-INV-08-2026-001',
         'Budi Santoso',
-        'Sinar Jaya Catering',
+        'Poetry\'s Catering',
         'Jl. Raya Serang No. 12',
-        'Serang',
-        '2026-07-10',
-        'Belum Lunas',
-        'Catatan acara tambahan...',
-        '[{"name":"Paket Nasi Kebuli","price":35000,"qty":100,"unit":"pax","subtotal":3500000}]',
-        '3500000',
-        'none',
-        '0',
-        '0',
-        '0',
-        '[]'
+        '2026-08-05',
+        'Paket Nasi Kebuli',
+        '100',
+        '35000',
+        '1000000',
+        'Belum Lunas'
       ];
-      const data = [...headers, dummyRow];
+      const sampleRow2 = [
+        'PC-INV-08-2026-001',
+        'Budi Santoso',
+        'Poetry\'s Catering',
+        'Jl. Raya Serang No. 12',
+        '2026-08-05',
+        'Es Kelapa Muda',
+        '100',
+        '5000',
+        '1000000',
+        'Belum Lunas'
+      ];
+      
+      const data = [...headers, sampleRow1, sampleRow2];
       const ws = XLSX.utils.aoa_to_sheet(data);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Invoices Template");
+      XLSX.utils.book_append_sheet(wb, ws, "Template Invoice");
       XLSX.writeFile(wb, "Template_Import_Invoice.xlsx");
       this.showAlert("Template Import Invoice berhasil diunduh!", "success");
     } catch (err) {
@@ -3467,8 +3504,7 @@ const app = {
     }
     document.getElementById('invDateCreated').valueAsDate = new Date();
     
-    // Auto generate invoice number
-    const invNum = 'INV-' + new Date().getTime().toString().slice(-6);
+    const invNum = this.generateNextInvoiceNumber();
     document.getElementById('pdfInvNumber').textContent = invNum;
     
     this.currentInvoice.items = [];
@@ -4197,14 +4233,14 @@ const app = {
         return;
       }
     } else {
-      if(!custName || !custPhone || !catLocation || !catDate || this.currentInvoice.items.length === 0) {
+      if(!custName || !vendorVal || !catLocation || !catDate || this.currentInvoice.items.length === 0) {
         this.showAlert("Mohon lengkapi: Nama Customer, Telepon, Lokasi, Tanggal Katering, dan minimal 1 menu.", "warning");
         return;
       }
     }
 
     const isUpdate = !!editId;
-    let invNum = isUpdate ? document.getElementById('pdfInvNumber').textContent : 'INV-' + new Date().getTime().toString().slice(-6);
+    let invNum = isUpdate ? document.getElementById('pdfInvNumber').textContent : this.generateNextInvoiceNumber();
     
     let status = 'Belum Lunas';
     if (isDraft) {
@@ -4461,8 +4497,10 @@ const app = {
       const dayData = scheduleMap[dateStr];
       const hasInvoice = dayData && dayData.invoices.length > 0;
       const hasBooking = dayData && dayData.schedules.some(s => (!s.type || s.type === 'Booking'));
+      const hasCatering = hasInvoice || hasBooking;
       const hasMeeting = dayData && dayData.schedules.some(s => s.type === 'Meeting');
-      const hasAny = hasInvoice || hasBooking || hasMeeting;
+      const hasTestFood = dayData && dayData.schedules.some(s => s.type === 'Test Food');
+      const hasAny = hasCatering || hasMeeting || hasTestFood;
       const isSelected = this.scheduleState.selectedDate === dateStr;
       
       let style = `
@@ -4484,8 +4522,8 @@ const app = {
           font-weight: 700;
         `;
       } else if (hasAny) {
-        let borderColor = hasInvoice ? 'rgba(212, 175, 55, 0.4)' : (hasMeeting ? 'rgba(139, 92, 246, 0.4)' : 'rgba(56, 189, 248, 0.4)');
-        let bgColor = hasInvoice ? 'rgba(212, 175, 55, 0.08)' : (hasMeeting ? 'rgba(139, 92, 246, 0.08)' : 'rgba(56, 189, 248, 0.08)');
+        let borderColor = hasCatering ? 'rgba(56, 189, 248, 0.4)' : (hasMeeting ? 'rgba(139, 92, 246, 0.4)' : (hasTestFood ? 'rgba(16, 185, 129, 0.4)' : 'rgba(56, 189, 248, 0.4)'));
+        let bgColor = hasCatering ? 'rgba(56, 189, 248, 0.08)' : (hasMeeting ? 'rgba(139, 92, 246, 0.08)' : (hasTestFood ? 'rgba(16, 185, 129, 0.08)' : 'rgba(56, 189, 248, 0.08)'));
         style += `
           background: ${bgColor};
           border: 1.5px dashed ${borderColor};
@@ -4504,27 +4542,30 @@ const app = {
       
       if (hasAny) {
         dotHtml += `<div style="position: absolute; bottom: 3px; left: 0; right: 0; display: flex; justify-content: center; gap: 3px;">`;
-        if (hasInvoice) {
-          dotHtml += `<span style="width: 5px; height: 5px; background: var(--color-primary); border-radius: 50%;"></span>`;
-        }
-        if (hasBooking) {
+        if (hasCatering) {
           dotHtml += `<span style="width: 5px; height: 5px; background: #38bdf8; border-radius: 50%;"></span>`;
         }
         if (hasMeeting) {
           dotHtml += `<span style="width: 5px; height: 5px; background: #8b5cf6; border-radius: 50%;"></span>`;
+        }
+        if (hasTestFood) {
+          dotHtml += `<span style="width: 5px; height: 5px; background: #10b981; border-radius: 50%;"></span>`;
         }
         dotHtml += `</div>`;
         
         // Construct Tooltip
         let tooltipContent = `<div style="margin-bottom: 5px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">${this.formatDate(dateStr)}</div>`;
         if (hasInvoice) {
-          tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: var(--color-primary)">•</span> ${dayData.invoices.length} Katering</div>`;
+          tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: #38bdf8">•</span> ${dayData.invoices.length} Katering (Invoice)</div>`;
         }
         if (hasBooking) {
-          tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: #38bdf8">•</span> ${dayData.schedules.filter(s => !s.type || s.type === 'Booking').length} Booking Umum</div>`;
+          tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: #38bdf8">•</span> ${dayData.schedules.filter(s => !s.type || s.type === 'Booking').length} Booking Catering</div>`;
         }
         if (hasMeeting) {
           tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: #8b5cf6">•</span> ${dayData.schedules.filter(s => s.type === 'Meeting').length} Meeting</div>`;
+        }
+        if (hasTestFood) {
+          tooltipContent += `<div style="font-size: 11px; margin-bottom: 3px;"><span style="color: #10b981">•</span> ${dayData.schedules.filter(s => s.type === 'Test Food').length} Test Food</div>`;
         }
         
         let eventNames = [];
@@ -4551,7 +4592,6 @@ const app = {
       `;
     }
   },
-
   selectCalendarDate(dateStr) {
     if (this.scheduleState.selectedDate === dateStr) {
       // Toggle off if clicked again
@@ -4559,6 +4599,11 @@ const app = {
     } else {
       this.scheduleState.selectedDate = dateStr;
     }
+    
+    // Auto clear search name input when selecting a specific date
+    this.scheduleState.searchName = '';
+    const nameInput = document.getElementById('scheduleSearchName');
+    if (nameInput) nameInput.value = '';
     
     // Update active label
     const label = document.getElementById('selectedDateLabel');
@@ -4634,8 +4679,8 @@ const app = {
         title: `${this.escapeHTML(inv.customerName || 'Unknown')} - ${this.escapeHTML(inv.invoiceNumber)}`,
         subtitle: `Vendor: ${this.escapeHTML(inv.vendor || '-')}`,
         details: escapedItems ? `Items: ${escapedItems}` : '',
-        badgeText: 'Invoice',
-        badgeColor: 'var(--color-primary)'
+        badgeText: 'Catering',
+        badgeColor: '#38bdf8'
       });
     });
 
@@ -4652,7 +4697,7 @@ const app = {
         subtitle: `<i data-lucide="map-pin" style="width:14px; vertical-align:middle;"></i> ${this.escapeHTML(sch.location || '-')}`,
         details: sch.notes ? `Catatan: ${this.escapeHTML(sch.notes)}` : '',
         badgeText: this.escapeHTML(sch.type || 'Booking'),
-        badgeColor: sch.type === 'Meeting' ? '#8b5cf6' : '#38bdf8'
+        badgeColor: sch.type === 'Meeting' ? '#8b5cf6' : (sch.type === 'Test Food' ? '#10b981' : '#38bdf8')
       });
     });
 
@@ -4848,6 +4893,12 @@ const app = {
       timeInput.removeAttribute('required');
       timeInput.value = '';
     }
+
+    const schType = document.getElementById('scheduleType');
+    if (schType) {
+      schType.value = 'Booking';
+      schType.dispatchEvent(new Event('change'));
+    }
     
     this.openModal('addScheduleModal');
   },
@@ -4863,7 +4914,11 @@ const app = {
     document.getElementById('scheduleModalTitle').textContent = 'Edit Jadwal';
     
     const type = sch.type || 'Booking';
-    document.getElementById('scheduleType').value = type;
+    const schType = document.getElementById('scheduleType');
+    if (schType) {
+      schType.value = type;
+      schType.dispatchEvent(new Event('change'));
+    }
     document.getElementById('scheduleTitle').value = sch.title || '';
     
     // Extract date and time
@@ -4885,7 +4940,7 @@ const app = {
     
     const timeGrp = document.getElementById('scheduleTimeGroup');
     const timeInput = document.getElementById('scheduleTime');
-    if (type === 'Meeting') {
+    if (type === 'Meeting' || type === 'Test Food') {
       if (timeGrp) timeGrp.style.display = 'block';
       if (timeInput) {
         timeInput.setAttribute('required', 'required');
@@ -4930,7 +4985,7 @@ const app = {
     const notes = document.getElementById('scheduleNotes').value;
 
     let finalDate = dateInputVal;
-    if (type === 'Meeting') {
+    if (type === 'Meeting' || type === 'Test Food') {
       const timeInputVal = document.getElementById('scheduleTime').value;
       if (timeInputVal) {
         finalDate = `${dateInputVal}T${timeInputVal}:00+07:00`;
@@ -6788,7 +6843,7 @@ const app = {
     }
   },
 
-  importInvoicesFromExcel(e) {
+  async importInvoicesFromExcel(e) {
     const role = this.data.currentUser ? this.data.currentUser.role : 'user';
     if (role !== 'admin' && role !== 'super admin') {
       this.showAlert("You do not have permission to import invoices.", "error", "Access Denied");
@@ -6822,45 +6877,52 @@ const app = {
           return headers.findIndex(h => names.some(name => h.includes(name)));
         };
 
-        const idxInvNum = getColIndex(['invoice', 'no', 'faktur']);
-        const idxCustName = getColIndex(['customer', 'pelanggan', 'nama']);
+        const idxInvNum = getColIndex(['invoice', 'no faktur', 'faktur']);
+        const idxCustName = getColIndex(['customer', 'pelanggan', 'nama pelanggan', 'nama']);
         const idxVendor = getColIndex(['vendor', 'phone', 'telepon', 'hp']);
         const idxLoc = getColIndex(['location', 'lokasi', 'alamat']);
         const idxDate = getColIndex(['date', 'tanggal']);
-        const idxTotal = getColIndex(['total', 'amount', 'tagihan', 'harga']);
+        const idxTotal = getColIndex(['total', 'tagihan', 'grand total', 'amount']);
         const idxPaid = getColIndex(['paid', 'dp', 'dibayar', 'uang muka']);
         const idxStatus = getColIndex(['status']);
 
-        if (idxCustName === -1 || idxLoc === -1 || idxDate === -1 || idxTotal === -1) {
+        // Item level indices
+        const idxMenuName = getColIndex(['menu', 'nama menu', 'item', 'produk']);
+        const idxQty = getColIndex(['qty', 'jumlah', 'banyak', 'pax']);
+        const idxItemPrice = getColIndex(['harga', 'price', 'satuan', 'harga satuan']);
+
+        if (idxCustName === -1 || idxLoc === -1 || idxDate === -1) {
           throw new Error(this.data.language === 'en' 
-            ? "Excel must contain at least: Customer Name, Location, Date, and Total Amount columns." 
-            : "Excel harus berisi minimal kolom: Nama Pelanggan, Lokasi, Tanggal, dan Total Tagihan.");
+            ? "Excel must contain at least: Customer Name, Location, and Date columns." 
+            : "Excel harus berisi minimal kolom: Nama Pelanggan, Lokasi, dan Tanggal.");
         }
 
-        const newInvoices = [];
-        let successCount = 0;
-
+        const invoiceGroups = {};
+        
         // Start from row 1 (skipping header)
         for (let i = 1; i < rawRows.length; i++) {
           const row = rawRows[i];
-          if (!row || row.length === 0 || !row[idxCustName]) continue; // Skip empty rows
+          if (!row || row.length === 0) continue; // Skip empty rows
+
+          // Try parsing identifiers
+          let invoiceNumber = idxInvNum !== -1 && row[idxInvNum] ? String(row[idxInvNum]).trim() : '';
+          const customerName = idxCustName !== -1 && row[idxCustName] ? String(row[idxCustName]).trim() : '';
+          
+          if (!customerName && !invoiceNumber) continue;
 
           // Parse and format date
           let dateStr = '';
-          const rawDate = row[idxDate];
+          const rawDate = idxDate !== -1 ? row[idxDate] : null;
           if (rawDate) {
             if (typeof rawDate === 'number') {
-              // Convert serial number of excel date
               const parsedDate = new Date((rawDate - (25567 + 2)) * 86400 * 1000);
-              dateStr = app.getLocalYMD(parsedDate);
+              dateStr = this.getLocalYMD(parsedDate);
             } else {
               const cleanDateStr = String(rawDate).trim();
-              // Try formatting
               const dateMatch = cleanDateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
               if (dateMatch) {
                 dateStr = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
               } else {
-                // Try DD/MM/YYYY
                 const dateMatchDMY = cleanDateStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
                 if (dateMatchDMY) {
                   dateStr = `${dateMatchDMY[3]}-${dateMatchDMY[2].padStart(2, '0')}-${dateMatchDMY[1].padStart(2, '0')}`;
@@ -6872,15 +6934,12 @@ const app = {
           }
 
           if (!dateStr || dateStr === 'NaN-NaN-NaN') {
-            dateStr = app.getLocalYMD(new Date());
+            dateStr = this.getLocalYMD(new Date());
           }
 
-          const customerName = String(row[idxCustName]).trim();
           const vendor = idxVendor !== -1 && row[idxVendor] ? String(row[idxVendor]).trim() : '';
-          const cateringLocation = String(row[idxLoc]).trim();
-          const totalAmount = idxTotal !== -1 && row[idxTotal] ? Number(row[idxTotal]) : 0;
+          const cateringLocation = idxLoc !== -1 && row[idxLoc] ? String(row[idxLoc]).trim() : '';
           const paidAmount = idxPaid !== -1 && row[idxPaid] ? Number(row[idxPaid]) : 0;
-          const remainingAmount = Math.max(0, totalAmount - paidAmount);
           
           let status = 'Unpaid';
           if (idxStatus !== -1 && row[idxStatus]) {
@@ -6888,38 +6947,95 @@ const app = {
             if (rawStatus.includes('lunas') || rawStatus.includes('paid')) {
               status = 'Paid';
             }
-          } else {
-            status = remainingAmount === 0 ? 'Paid' : 'Unpaid';
           }
 
-          // Generate Invoice Number if missing
-          let invoiceNumber = idxInvNum !== -1 && row[idxInvNum] ? String(row[idxInvNum]).trim() : '';
+          // Parse items
+          const itemName = idxMenuName !== -1 && row[idxMenuName] ? String(row[idxMenuName]).trim() : '';
+          const itemQty = idxQty !== -1 && row[idxQty] ? Number(row[idxQty]) : 1;
+          const itemPrice = idxItemPrice !== -1 && row[idxItemPrice] ? Number(row[idxItemPrice]) : 0;
+          const excelTotal = idxTotal !== -1 && row[idxTotal] ? Number(row[idxTotal]) : 0;
+
+          // Generate grouping key
+          let groupKey = invoiceNumber;
+          if (!groupKey) {
+            groupKey = `TEMP_${customerName}_${dateStr}_${cateringLocation}`.replace(/\s+/g, '_');
+          }
+
+          if (!invoiceGroups[groupKey]) {
+            invoiceGroups[groupKey] = {
+              invoiceNumber,
+              customerName,
+              vendor,
+              cateringLocation,
+              cateringDate: dateStr,
+              paidAmount,
+              status,
+              items: [],
+              excelTotal
+            };
+          }
+
+          if (itemName) {
+            invoiceGroups[groupKey].items.push({
+              name: itemName,
+              qty: itemQty,
+              price: itemPrice,
+              subtotal: itemQty * itemPrice
+            });
+          }
+
+          if (paidAmount > invoiceGroups[groupKey].paidAmount) {
+            invoiceGroups[groupKey].paidAmount = paidAmount;
+          }
+          if (excelTotal > invoiceGroups[groupKey].excelTotal) {
+            invoiceGroups[groupKey].excelTotal = excelTotal;
+          }
+        }
+
+        const newInvoices = [];
+        let successCount = 0;
+        let indexCounter = 1;
+
+        for (const key in invoiceGroups) {
+          const group = invoiceGroups[key];
+          
+          let totalAmount = group.items.reduce((sum, item) => sum + item.subtotal, 0);
+          
+          // Fallback to legacy total if items are empty
+          if (totalAmount === 0 || group.items.length === 0) {
+            totalAmount = group.excelTotal || 0;
+            group.items = [{
+              name: "Layanan Katering (Excel Import)",
+              price: totalAmount,
+              qty: 1,
+              subtotal: totalAmount
+            }];
+          }
+
+          const remainingAmount = Math.max(0, totalAmount - group.paidAmount);
+          let finalStatus = group.status;
+          if (finalStatus !== 'Paid') {
+            finalStatus = remainingAmount === 0 ? 'Paid' : 'Unpaid';
+          }
+
+          let invoiceNumber = group.invoiceNumber;
           if (!invoiceNumber) {
-            const count = this.data.invoices.length + newInvoices.length + 1;
-            invoiceNumber = `INV-${String(count).padStart(3, '0')}`;
+            invoiceNumber = this.generateNextInvoiceNumber(new Date(), newInvoices);
           }
-
-          // Default menu item representing the invoice total
-          const items = [{
-            name: "Layanan Katering (Excel Import)",
-            price: totalAmount,
-            qty: 1,
-            subtotal: totalAmount
-          }];
 
           const invoicePayload = {
-            id: Date.now() + Math.random(),
+            id: Date.now() + Math.random() + (indexCounter++),
             invoiceNumber,
-            customerName,
-            vendor,
-            cateringLocation,
+            customerName: group.customerName,
+            vendor: group.vendor,
+            cateringLocation: group.cateringLocation,
             cateringCity: "Serang",
-            cateringDate: dateStr,
-            items,
+            cateringDate: group.cateringDate,
+            items: JSON.stringify(group.items), // Stringify items to store inside sheets db cleanly
             totalAmount,
-            paidAmount,
+            paidAmount: group.paidAmount,
             remainingAmount,
-            status,
+            status: finalStatus,
             createdAt: new Date().toISOString()
           };
 
@@ -7468,13 +7584,37 @@ const app = {
       schType.addEventListener('change', () => {
         const timeGrp = document.getElementById('scheduleTimeGroup');
         const timeInput = document.getElementById('scheduleTime');
+        const lblTitle = document.getElementById('lblScheduleTitle');
+        const lblDate = document.getElementById('lblScheduleDate');
+        const lblLocation = document.getElementById('lblScheduleLocation');
+        const lblNotes = document.getElementById('lblScheduleNotes');
+
         if (schType.value === 'Meeting') {
           timeGrp.style.display = 'block';
           timeInput.setAttribute('required', 'required');
+          const lblTime = document.getElementById('lblScheduleTime');
+          if (lblTitle) lblTitle.innerHTML = 'Meeting Subject / Client <span style="color: var(--color-danger);">*</span>';
+          if (lblDate) lblDate.innerHTML = 'Meeting Date <span style="color: var(--color-danger);">*</span>';
+          if (lblTime) lblTime.innerHTML = 'Meeting Time <span style="color: var(--color-danger);">*</span>';
+          if (lblLocation) lblLocation.innerHTML = 'Location';
+          if (lblNotes) lblNotes.innerHTML = 'Notes';
+        } else if (schType.value === 'Test Food') {
+          timeGrp.style.display = 'block';
+          timeInput.setAttribute('required', 'required');
+          const lblTime = document.getElementById('lblScheduleTime');
+          if (lblTitle) lblTitle.innerHTML = 'Client untuk Test Food <span style="color: var(--color-danger);">*</span>';
+          if (lblDate) lblDate.innerHTML = 'Tanggal Test Food <span style="color: var(--color-danger);">*</span>';
+          if (lblTime) lblTime.innerHTML = 'Jam Test Food <span style="color: var(--color-danger);">*</span>';
+          if (lblLocation) lblLocation.innerHTML = 'Lokasi Test Food';
+          if (lblNotes) lblNotes.innerHTML = 'Keterangan';
         } else {
           timeGrp.style.display = 'none';
           timeInput.removeAttribute('required');
           timeInput.value = '';
+          if (lblTitle) lblTitle.innerHTML = 'Event Name / Client <span style="color: var(--color-danger);">*</span>';
+          if (lblDate) lblDate.innerHTML = 'Event / Meeting Date <span style="color: var(--color-danger);">*</span>';
+          if (lblLocation) lblLocation.innerHTML = 'Location';
+          if (lblNotes) lblNotes.innerHTML = 'Notes';
         }
       });
     }
@@ -7487,9 +7627,11 @@ const app = {
       }
     });
 
-    // Auto show date picker on click of date inputs
-    document.addEventListener('click', (e) => {
+    // Auto show date picker on focus of date inputs (allows typing on subsequent clicks)
+    document.addEventListener('focusin', (e) => {
       if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'date') {
+        if (e.target.dataset.pickerOpened === 'true') return;
+        e.target.dataset.pickerOpened = 'true';
         try {
           if (typeof e.target.showPicker === 'function') {
             e.target.showPicker();
@@ -7497,6 +7639,9 @@ const app = {
         } catch (err) {
           console.warn("showPicker is not supported or failed:", err);
         }
+        setTimeout(() => {
+          if (e.target) delete e.target.dataset.pickerOpened;
+        }, 500);
       }
     });
 

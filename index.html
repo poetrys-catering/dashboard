@@ -17,7 +17,7 @@
 
   <!-- Bootstrap 5 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="style.css?v=20260719_v182">
+  <link rel="stylesheet" href="style.css?v=20260719_v193">
   
   <!-- Nav Active Override — inline to prevent cache issues -->
   <style>
@@ -246,7 +246,7 @@
               <i data-lucide="bell" style="width: 14px; height: 14px;"></i>
               <span class="notification-badge" style="display: none;">0</span>
             </button>
-            <div class="notification-dropdown glass" style="position: absolute; bottom: 38px; right: 0; top: auto; width: 280px; z-index: 2000;">
+            <div class="notification-dropdown glass" style="position: absolute; bottom: 42px; left: -160px; right: auto; top: auto; width: 280px; z-index: 2000;">
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 8px; margin-bottom: 4px;">
                 <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primary);" data-lang-key="upcomingDueInvoices">Overdue Invoices</h4>
                 <span class="badge notification-count-label" style="background: rgba(239, 68, 68, 0.15); color: var(--color-danger); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">0</span>
@@ -1589,26 +1589,27 @@
             <select id="scheduleType" required>
               <option value="Booking">Catering Booking</option>
               <option value="Meeting">Meeting</option>
+              <option value="Test Food">Test Food</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Event Name / Client <span style="color: var(--color-danger);">*</span></label>
+            <label id="lblScheduleTitle">Event Name / Client <span style="color: var(--color-danger);">*</span></label>
             <input type="text" id="scheduleTitle" placeholder="e.g. Wedding Mr. Budi" required>
           </div>
           <div class="form-group">
-            <label>Event / Meeting Date <span style="color: var(--color-danger);">*</span></label>
+            <label id="lblScheduleDate">Event / Meeting Date <span style="color: var(--color-danger);">*</span></label>
             <input type="date" id="scheduleDate" required>
           </div>
           <div class="form-group" id="scheduleTimeGroup" style="display: none;">
-            <label>Meeting Time <span style="color: var(--color-danger);">*</span></label>
+            <label id="lblScheduleTime">Meeting Time <span style="color: var(--color-danger);">*</span></label>
             <input type="time" id="scheduleTime">
           </div>
           <div class="form-group">
-            <label>Location</label>
+            <label id="lblScheduleLocation">Location</label>
             <input type="text" id="scheduleLocation" placeholder="Location address">
           </div>
           <div class="form-group">
-            <label>Notes</label>
+            <label id="lblScheduleNotes">Notes</label>
             <textarea id="scheduleNotes" rows="3" placeholder="Add specific details if any..."></textarea>
           </div>
           <div class="form-actions mt-4" style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -2126,7 +2127,7 @@
 
   <!-- Bootstrap 5 JS Bundle -->
   <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script defer src="logo_base64.js?v=20260719_v182"></script>
-  <script defer src="app.js?v=20260719_v182"></script>
+  <script defer src="logo_base64.js?v=20260719_v193"></script>
+  <script defer src="app.js?v=20260719_v193"></script>
 </body>
 </html>
