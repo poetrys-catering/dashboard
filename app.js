@@ -4706,8 +4706,8 @@ const app = {
     const activeYear = this.scheduleState.currentYear;
 
     let filtered = combinedSchedules.filter(item => {
-      const itemDate = new Date(item._rawDate);
-      if (isNaN(itemDate.getTime())) return false;
+      const itemDate = this.parseLocalDate(item._rawDate);
+      if (!itemDate || isNaN(itemDate.getTime())) return false;
 
       const itemYear = itemDate.getFullYear();
       const itemMonth = itemDate.getMonth();
@@ -4730,8 +4730,8 @@ const app = {
 
     // 3. Sort
     filtered.sort((a, b) => {
-      const dateA = new Date(a._rawDate);
-      const dateB = new Date(b._rawDate);
+      const dateA = this.parseLocalDate(a._rawDate);
+      const dateB = this.parseLocalDate(b._rawDate);
       return this.scheduleState.sortAsc ? (dateA - dateB) : (dateB - dateA);
     });
 
@@ -4759,10 +4759,10 @@ const app = {
       lucide.createIcons();
     } else {
       pageItems.forEach(item => {
-        const d = new Date(item._rawDate);
+        const d = this.parseLocalDate(item._rawDate);
         let day = '-';
         let month = '-';
-        if (!isNaN(d.getTime())) {
+        if (d && !isNaN(d.getTime())) {
           try {
             day = d.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric' });
             const locale = (this.data.language === 'en') ? 'en-US' : 'id-ID';
@@ -4776,8 +4776,8 @@ const app = {
 
         let timeHtml = '';
         if (item._rawDate && item._rawDate.includes('T') && item._rawDate.includes(':')) {
-          const dObj = new Date(item._rawDate);
-          if (!isNaN(dObj.getTime())) {
+          const dObj = this.parseLocalDate(item._rawDate);
+          if (dObj && !isNaN(dObj.getTime())) {
             try {
               const formatter = new Intl.DateTimeFormat('en-US', {
                 timeZone: 'Asia/Jakarta',
@@ -6617,6 +6617,31 @@ const app = {
       clean = '628' + clean.slice(4);
     }
     return clean;
+  },
+
+  parseLocalDate(dateStr) {
+    if (!dateStr) return null;
+    const s = String(dateStr).trim();
+    // Match YYYY-MM-DD
+    const match = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1; // 0-based
+      const day = parseInt(match[3], 10);
+      
+      // If there is a time component, e.g., T13:00 or 13:00
+      const timeMatch = s.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      if (timeMatch) {
+        const hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        const seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+        return new Date(year, month, day, hours, minutes, seconds);
+      }
+      
+      return new Date(year, month, day);
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
   },
 
   getLocalYMD(val) {
