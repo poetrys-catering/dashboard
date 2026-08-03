@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poetry's Catering Dashboard</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet GIS Map Library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Bootstrap 5 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="style.css?v=20260719_v182">
+  
+  <!-- Nav Active Override — inline to prevent cache issues -->
+  <style>
+    /* Active nav tab: gold background, black text — high contrast, always readable */
+    body .nav-tab.active,
+    body.light-theme .nav-tab.active {
+      background: #d4af37 !important;
+      color: #111111 !important;
+      font-weight: 700 !important;
+      border-radius: 8px !important;
+      box-shadow: 0 3px 10px rgba(212, 175, 55, 0.3) !important;
+    }
+    /* Hide the animated indicator — replaced by direct background above */
+    .nav-indicator {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    
+    /* Summary Card Alignments Override to bypass local file:// caching */
+    .summary-row .summary-value,
+    .summary-row .grand-total-value,
+    .discount-amount-label,
+    .remaining-balance-value {
+      width: 175px !important;
+      min-width: 175px !important;
+      max-width: 175px !important;
+      flex-shrink: 0 !important;
+      text-align: right !important;
+      justify-content: flex-end !important;
+      display: inline-flex !important;
+      align-items: center !important;
+    }
+    .currency-input-wrapper,
+    .discount-input-group {
+      width: 175px !important;
+      min-width: 175px !important;
+      max-width: 175px !important;
+      flex-shrink: 0 !important;
+      overflow: hidden !important;
+      margin-left: auto !important;
+    }
+    .discount-select {
+      flex: 1 !important;
+      min-width: 0 !important;
+    }
+    .discount-input {
+      flex: 1.5 !important;
+      min-width: 0 !important;
+      width: 0 !important;
+    }
+    
+    /* Leaflet Popup Styling to match theme */
+    .leaflet-popup-content-wrapper {
+      background: rgba(26, 29, 36, 0.95) !important;
+      border: 1px solid rgba(212, 175, 55, 0.25) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+      backdrop-filter: blur(8px) !important;
+    }
+    .leaflet-popup-tip {
+      background: rgba(26, 29, 36, 0.95) !important;
+      border: 1px solid rgba(212, 175, 55, 0.25) !important;
+    }
+    body.light-theme .leaflet-popup-content-wrapper {
+      background: rgba(255, 255, 255, 0.95) !important;
+      border: 1px solid rgba(212, 175, 55, 0.25) !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+    }
+    body.light-theme .leaflet-popup-tip {
+      background: rgba(255, 255, 255, 0.95) !important;
+    }
+
+    /* Custom GIS Tooltip Styling */
+    .custom-gis-tooltip {
+      background: rgba(26, 29, 36, 0.95) !important;
+      border: 1px solid rgba(212, 175, 55, 0.35) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+      padding: 10px !important;
+      backdrop-filter: blur(8px) !important;
+    }
+    body.light-theme .custom-gis-tooltip {
+      background: rgba(255, 255, 255, 0.95) !important;
+      border: 1px solid rgba(212, 175, 55, 0.25) !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+    }
+    .leaflet-tooltip-left:before {
+      border-left-color: rgba(26, 29, 36, 0.95) !important;
+    }
+    .leaflet-tooltip-right:before {
+      border-right-color: rgba(26, 29, 36, 0.95) !important;
+    }
+    body.light-theme .leaflet-tooltip-left:before {
+      border-left-color: rgba(255, 255, 255, 0.95) !important;
+    }
+    body.light-theme .leaflet-tooltip-right:before {
+      border-right-color: rgba(255, 255, 255, 0.95) !important;
+    }
+  </style>
+  
+  <!-- Libraries -->
+  <script defer src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <!-- QRCode.js: generate QR code locally without CORS -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+  <script>
+    if (localStorage.getItem('theme') !== 'dark') {
+      document.body.classList.add('light-theme');
+    }
+  </script>
+
+  <!-- LOADING OVERLAY -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="glass" style="text-align: center; padding: 40px; border-radius: 20px; max-width: 320px; width: 90%; display: flex; flex-direction: column; align-items: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);">
+      <div style="font-size: 42px; font-weight: 800; color: var(--color-primary); margin-bottom: 15px; font-variant-numeric: tabular-nums; display: flex; align-items: baseline;">
+        <span id="loadingProgressText">0%</span>
+      </div>
+      
+      <div style="width: 100%; height: 6px; background: var(--color-border); border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+        <div id="loadingProgressBarInner" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--color-primary), #6366f1); border-radius: 10px;"></div>
+      </div>
+      
+      <p id="loadingText" style="color: var(--color-text-muted); margin: 0; font-weight: 500; font-size: 14px; letter-spacing: 0.5px; text-transform: uppercase;">Memuat...</p>
+    </div>
+  </div>
+
+  <!-- DETAIL PROGRESS LOADING OVERLAY -->
+  <div id="detailLoadingOverlay" class="loading-overlay hidden" style="background: rgba(15, 17, 21, 0.95);">
+    <div style="width: 280px; text-align: center;">
+      <div style="font-size: 24px; font-weight: 700; color: var(--color-primary); margin-bottom: 8px;" id="detailLoadingPercent">0%</div>
+      <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
+        <div id="detailLoadingBar" style="width: 0%; height: 100%; background: var(--color-primary); transition: width 0.05s linear; border-radius: 3px;"></div>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: var(--color-text-muted); font-weight: 500; letter-spacing: 0.5px;" id="detailLoadingText">Menyusun detail data...</p>
+    </div>
+  </div>
+
+  <!-- LOGIN PAGE -->
+  <div id="pageLogin" class="page login-page hidden">
+    <div class="login-card glass">
+      <div id="loginLogoContainer" style="display: flex; justify-content: center; margin-bottom: 1.5rem;"></div>
+      <h1 class="brand-title">Poetry's Catering</h1>
+      <p class="subtitle">Please login to your account</p>
+      
+      <form id="loginForm">
+        <div class="form-group" style="display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem;">
+          <div style="background: rgba(255,255,255,0.05); width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
+            <i data-lucide="user" style="color: var(--color-accent); width: 20px; height: 20px;"></i>
+          </div>
+          <input type="text" id="loginUsername" required placeholder="Enter Username" style="flex: 1; margin: 0; height: 46px; padding: 0 1rem; border-radius: 8px;">
+        </div>
+        
+        <div class="form-group" style="display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem;">
+          <div style="background: rgba(255,255,255,0.05); width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
+            <i data-lucide="lock" style="color: var(--color-accent); width: 20px; height: 20px;"></i>
+          </div>
+          <input type="password" id="loginPassword" required placeholder="Enter Password" style="flex: 1; margin: 0; height: 46px; padding: 0 1rem; border-radius: 8px;">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" style="height: 46px; border-radius: 8px; font-weight: 600;">Login</button>
+      </form>
+      <div id="loginError" class="error-text hidden">Invalid username or password.</div>
+      
+      <div class="login-footer">
+        <p>Please log in using your registered username. If you do not have an account, please contact the admin.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD LAYOUT -->
+  <div id="appLayout" class="app-layout hidden">
+    <!-- MOBILE HEADER -->
+    <div class="mobile-header glass-dark">
+      <button id="btnMobileSidebarToggle" class="btn btn-icon" onclick="app.toggleMobileSidebar()" style="background: transparent; border: none; color: var(--color-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;"><i data-lucide="menu"></i></button>
+      <h2 class="brand-title-small" style="margin: 0; font-size: 1.1rem; font-weight: 700; color: var(--color-primary);">Poetry's Catering</h2>
+      <div style="width: 36px;"></div> <!-- Spacer to align center -->
+    </div>
+
+    <!-- SIDEBAR OVERLAY BACKDROP -->
+    <div class="sidebar-overlay" onclick="app.toggleMobileSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar glass-dark">
+      <div class="sidebar-header" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; padding: 1.5rem 1rem; gap: 10px; text-align: center;">
+        <div id="sidebarLogoContainer" style="display: none; align-items: center; justify-content: center; margin-bottom: 4px;"></div>
+        <div class="brand-wrapper" style="display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%;">
+          <div class="brand-icon-fallback" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); flex-shrink: 0;"><i data-lucide="cooking-pot" style="width: 22px; height: 22px;"></i></div>
+          <h2 class="brand-title-small" style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--color-primary); transition: opacity 0.2s ease; letter-spacing: 0.5px;">Poetry's Catering</h2>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-title" data-lang-key="general" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">General</div>
+        <a href="#" data-page="dashboard" class="nav-link active" title="Dashboard"><i data-lucide="layout-dashboard"></i> <span data-lang-key="dashboard">Dashboard</span></a>
+        <a href="#" data-page="invoices" class="nav-link admin-only" title="Invoices"><i data-lucide="file-text"></i> <span data-lang-key="invoices">Invoices</span></a>
+        <a href="#" data-page="schedules" class="nav-link" title="Schedules"><i data-lucide="calendar"></i> <span data-lang-key="schedules">Schedules</span></a>
+        
+        <div class="nav-divider admin-only"></div>
+        <div class="nav-title admin-only" data-lang-key="management">Management</div>
+        
+        <a href="#" data-page="menus" class="nav-link admin-only" title="Master Menu"><i data-lucide="utensils"></i> <span data-lang-key="masterMenu">Master Menu</span></a>
+        <a href="#" data-page="users" class="nav-link super-admin-only" title="Master User"><i data-lucide="users"></i> <span data-lang-key="masterUser">Master User</span></a>
+        <a href="#" data-page="reports" class="nav-link admin-only" title="Reports"><i data-lucide="bar-chart-3"></i> <span data-lang-key="reports">Reports</span></a>
+        <a href="#" data-page="settings" class="nav-link admin-only" title="Settings"><i data-lucide="settings"></i> <span data-lang-key="settings">Settings</span></a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info navbar-user" onclick="app.openProfileModal()">
+          <div class="avatar"><i data-lucide="user"></i></div>
+          <div class="user-details-navbar">
+            <div class="user-name user-name-display">Admin</div>
+            <div class="user-role user-role-display">admin</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; border-top: 1px solid var(--color-border); padding-top: 10px; width: 100%;">
+          <button class="btn btn-icon btn-theme-toggle" onclick="app.toggleTheme()" title="Toggle Theme" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--color-primary); cursor: pointer;"><i data-lucide="sun" style="width: 14px; height: 14px;"></i></button>
+          
+          <div class="navbar-notification-wrapper" style="position: relative;">
+            <button class="btn btn-icon btn-notification-toggle" title="Notifications" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--color-primary); cursor: pointer;">
+              <i data-lucide="bell" style="width: 14px; height: 14px;"></i>
+              <span class="notification-badge" style="display: none;">0</span>
+            </button>
+            <div class="notification-dropdown glass" style="position: absolute; bottom: 38px; right: 0; top: auto; width: 280px; z-index: 2000;">
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 8px; margin-bottom: 4px;">
+                <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primary);" data-lang-key="upcomingDueInvoices">Overdue Invoices</h4>
+                <span class="badge notification-count-label" style="background: rgba(239, 68, 68, 0.15); color: var(--color-danger); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">0</span>
+              </div>
+              <div class="notification-list-container" style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px 0;">
+                <!-- Notifications injected here -->
+              </div>
+            </div>
+          </div>
+          
+          <button class="btn btn-icon btn-danger btn-logout-action" onclick="app.logout()" title="Logout" style="width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(239, 68, 68, 0.1); color: var(--color-danger); border: 1px solid rgba(239, 68, 68, 0.2);"><i data-lucide="log-out" style="width: 14px; height: 14px;"></i></button>
+        </div>
+      </div>
+
+      <!-- SIDEBAR PIN BAR (Desktop Only) -->
+      <div class="sidebar-pin-container">
+        <button class="sidebar-pin-btn" onclick="app.toggleSidebarPin()" title="Pin Sidebar">
+          <i data-lucide="arrow-left-right" style="width: 16px; height: 16px;"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- TOP HEADER (Desktop Only) -->
+    <header class="top-header glass-dark">
+      <div class="top-header-left" style="display: flex; align-items: center; gap: 12px;">
+        <!-- Logo Image or Fallback Pot Icon -->
+        <div id="topHeaderLogoContainer" style="display: none; align-items: center; justify-content: center;"></div>
+        <div class="top-header-brand-wrapper" style="display: flex; align-items: center; gap: 8px;">
+          <div class="top-header-brand-icon-fallback" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(var(--color-primary-rgb), 0.1); color: var(--color-primary); flex-shrink: 0;"><i data-lucide="cooking-pot" style="width: 18px; height: 18px;"></i></div>
+          <span style="font-family: var(--font-serif); font-size: 1.05rem; font-weight: 700; color: var(--color-primary); white-space: nowrap;">Poetry's Catering</span>
+        </div>
+        
+        <div style="width: 1px; height: 20px; background: var(--color-border); margin: 0 4px;"></div>
+        
+        <h1 id="topHeaderPageTitle" class="top-header-title">Dashboard</h1>
+      </div>
+      <div class="top-header-right" style="display: flex; align-items: center; gap: 12px;">
+        <!-- Global Menu Search -->
+        <div class="header-search-container admin-only" style="position: relative; width: 180px;">
+          <input type="text" id="headerSearchInput" class="form-control" placeholder="Cari menu... (Ctrl+K)" style="height: 36px; padding-left: 32px; padding-right: 10px; font-size: 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--color-border); color: var(--color-text); transition: all 0.3s ease;" onfocus="this.style.borderColor='var(--color-primary)'; this.style.background='rgba(255,255,255,0.08)'" onblur="this.style.borderColor='var(--color-border)'; this.style.background='rgba(255,255,255,0.04)'">
+          <i data-lucide="search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--color-text-muted); pointer-events: none;"></i>
+          <div id="headerSearchResults" class="glass" style="display: none; position: absolute; top: 42px; left: 0; right: -40px; border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 2000; overflow: hidden; padding: 4px 0; max-height: 300px; overflow-y: auto;">
+          </div>
+        </div>
+
+        <!-- Theme Toggle -->
+        <button class="btn btn-icon btn-theme-toggle" onclick="app.toggleTheme()" title="Toggle Theme" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--color-primary); cursor: pointer;"><i data-lucide="sun" style="width: 16px; height: 16px;"></i></button>
+        
+        <!-- Notifications Toggle -->
+        <div class="navbar-notification-wrapper" style="position: relative;">
+          <button class="btn btn-icon btn-notification-toggle" title="Notifications" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--color-primary); cursor: pointer;">
+            <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
+            <span class="notification-badge" style="display: none;">0</span>
+          </button>
+          <div class="notification-dropdown glass" style="position: absolute; top: 42px; right: 0; width: 280px; z-index: 2000;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); padding-bottom: 8px; margin-bottom: 4px;">
+              <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--color-primary);" data-lang-key="upcomingDueInvoices">Overdue Invoices</h4>
+              <span class="badge notification-count-label" style="background: rgba(239, 68, 68, 0.15); color: var(--color-danger); padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">0</span>
+            </div>
+            <div class="notification-list-container" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px 0;">
+              <!-- Notifications injected here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="divider-vertical" style="margin: 0 4px; display: block !important;"></div>
+
+        <!-- User Profile widget -->
+        <div class="navbar-user" onclick="app.openProfileModal()">
+          <div class="avatar"><i data-lucide="user"></i></div>
+          <div class="user-details-navbar">
+            <div class="user-name user-name-display">Admin</div>
+            <div class="user-role user-role-display">admin</div>
+          </div>
+        </div>
+
+        <div class="divider-vertical" style="margin: 0 4px; display: block !important;"></div>
+
+        <!-- Logout Button -->
+        <button class="btn btn-icon btn-danger btn-logout-action" onclick="app.logout()" title="Logout" style="width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; background: rgba(239, 68, 68, 0.1); color: var(--color-danger); border: 1px solid rgba(239, 68, 68, 0.2);"><i data-lucide="log-out" style="width: 14px; height: 14px;"></i></button>
+      </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+      
+      <!-- PAGE: DASHBOARD -->
+      <section id="viewDashboard" class="view active">
+        <header class="page-header">
+          <div>
+            <h1 data-lang-key="dashboard">Dashboard</h1>
+            <p data-lang-key="welcomeBack">Welcome back to Poetry's Catering</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data" data-lang-key="refresh"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button class="btn btn-primary admin-only" onclick="app.navigate('create-invoice')" data-lang-key="newInvoice"><i data-lucide="plus"></i> New Invoice</button>
+          </div>
+        </header>
+
+        <div class="stats-grid">
+          <div class="stat-card glass tooltip-host">
+            <div class="stat-icon"><i data-lucide="check-circle"></i></div>
+            <div class="stat-content">
+              <h3 data-lang-key="paidInvoices">Paid Invoices</h3>
+              <p id="statTotalPaidInvoices">0</p>
+            </div>
+            <div class="tooltip-content" id="tooltipPaidInvoices"></div>
+          </div>
+          <div class="stat-card glass tooltip-host" style="border-left: 4px solid var(--color-success);">
+            <div class="stat-icon"><i data-lucide="dollar-sign"></i></div>
+            <div class="stat-content">
+              <h3 data-lang-key="revenuePaid">Revenue (Paid)</h3>
+              <p id="statTotalPaidRevenue" style="color: var(--color-success);">Rp 0</p>
+            </div>
+            <div class="tooltip-content" id="tooltipPaidRevenue"></div>
+          </div>
+          <div class="stat-card glass tooltip-host">
+            <div class="stat-icon"><i data-lucide="clock"></i></div>
+            <div class="stat-content">
+              <h3 data-lang-key="unpaidInvoices">Unpaid Invoices</h3>
+              <p id="statTotalUnpaidInvoices">0</p>
+            </div>
+            <div class="tooltip-content" id="tooltipUnpaidInvoices"></div>
+          </div>
+          <div class="stat-card glass tooltip-host" style="border-left: 4px solid var(--color-danger);">
+            <div class="stat-icon"><i data-lucide="alert-circle"></i></div>
+            <div class="stat-content">
+              <h3 data-lang-key="pendingRevenue">Pending Revenue</h3>
+              <p id="statTotalUnpaidRevenue" style="color: var(--color-danger);">Rp 0</p>
+            </div>
+            <div class="tooltip-content" id="tooltipUnpaidRevenue"></div>
+          </div>
+        </div>
+
+        <!-- ROW 1: Two existing widgets (Nearest Schedules + Revenue Chart) -->
+        <div class="dashboard-widgets">
+          <div class="widget glass">
+            <h3 data-lang-key="nearestSchedules">Jadwal Katering Terdekat</h3>
+            <div class="table-responsive">
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th data-lang-key="customer">Customer</th>
+                    <th data-lang-key="cateringDate">Catering Date</th>
+                    <th data-lang-key="location">Location</th>
+                    <th data-lang-key="status">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="nearestSchedulesTable">
+                  <!-- Rows injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="glass p-6 hero-stat-card" style="margin-bottom: 0;">
+            <div class="hero-glow"></div>
+            <h3 class="hero-revenue-title">Omset Tahun Ini</h3>
+            
+            <div class="hero-revenue-amount-container">
+              <span class="hero-revenue-currency">Rp</span> 
+              <span id="chartStatOmset">0</span>
+            </div>
+
+            <div class="hero-stats-container">
+              <div class="hero-mini-stat tooltip-host">
+                <div class="hero-mini-stat-label">Invoice Terbayar</div>
+                <div id="chartStatTerbayar" class="hero-mini-stat-value" style="color: var(--color-success)">0</div>
+                <div class="tooltip-content" style="min-width: 220px;">
+                  <div style="font-weight: 700; color: var(--color-tooltip-title); margin-bottom: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Status Invoice Tahun Ini</div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 6px; gap: 15px; font-size: 12px;">
+                    <span style="color: var(--color-text-muted);">• Lunas:</span>
+                    <strong style="color: var(--color-success); font-weight: 600;"><span id="chartStatTerbayarCount">0</span></strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; gap: 15px; font-size: 12px;">
+                    <span style="color: var(--color-text-muted);">• Belum Lunas:</span>
+                    <strong style="color: var(--color-danger); font-weight: 600;"><span id="chartStatBelumTerbayar">0</span></strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mini Trend Chart -->
+            <div style="position: relative; height: 100px; width: 100%; margin-top: 15px;">
+              <canvas id="dashboardTrendChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- ROW 2: Full-width Due Invoices + Calendar side by side -->
+        <div class="dashboard-row-2 mt-6">
+
+          <!-- Left: Due Invoices Table -->
+          <div class="widget glass">
+            <h3 data-lang-key="upcomingDueInvoices">Upcoming Due Invoices <span style="font-size:0.8em; font-weight:400; color:var(--color-text-muted);">(Closest 5 Unpaid)</span></h3>
+            <div class="table-responsive">
+              <table class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th data-lang-key="invoiceNo">Invoice #</th>
+                    <th data-lang-key="customer">Customer</th>
+                    <th data-lang-key="cateringDate">Catering Date (Due)</th>
+                    <th data-lang-key="amount">Total Amount</th>
+                    <th data-lang-key="remainingAmount">Remaining Amount</th>
+                    <th data-lang-key="status">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="dueInvoicesTable">
+                  <!-- Rows injected here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right: Mini Calendar Widget -->
+          <div class="widget glass dashboard-calendar-widget">
+            <div class="dash-cal-header">
+              <button class="btn btn-secondary btn-sm dash-cal-nav" onclick="app.dashCalPrev()" title="Bulan Sebelumnya">
+                <i data-lucide="chevron-left" style="width:16px;height:16px;"></i>
+              </button>
+              <h3 id="dashCalMonthYear" style="margin:0; font-size:1rem; font-weight:700; color:var(--color-primary); text-align:center; flex:1;">Mei 2026</h3>
+              <button class="btn btn-secondary btn-sm dash-cal-nav" onclick="app.dashCalNext()" title="Bulan Berikutnya">
+                <i data-lucide="chevron-right" style="width:16px;height:16px;"></i>
+              </button>
+            </div>
+
+            <!-- Day labels -->
+            <div class="dash-cal-day-labels">
+              <span style="color:var(--color-danger);">Min</span>
+              <span>Sen</span>
+              <span>Sel</span>
+              <span>Rab</span>
+              <span>Kam</span>
+              <span>Jum</span>
+              <span>Sab</span>
+            </div>
+
+            <!-- Day grid -->
+            <div id="dashCalDays" class="dash-cal-grid">
+              <!-- Injected via JS -->
+            </div>
+
+            <!-- Legend -->
+            <div class="dash-cal-legend">
+              <span class="dash-cal-dot" style="background:var(--color-primary);"></span><span>Invoice</span>
+              <span class="dash-cal-dot" style="background:#38bdf8;"></span><span>Booking</span>
+              <span class="dash-cal-dot" style="background:#8b5cf6;"></span><span>Meeting</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- PAGE: INVOICES -->
+      <section id="viewInvoices" class="view">
+        <header class="page-header">
+          <div>
+            <h1 data-lang-key="invoices">Invoices</h1>
+            <p data-lang-key="manageInvoices">Manage all catering invoices</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data" data-lang-key="refresh"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button class="btn btn-secondary admin-only" onclick="app.openImportModal('invoice')"><i data-lucide="upload"></i> Import Excel</button>
+            <button class="btn btn-primary admin-only" onclick="app.openCreateInvoiceModal()" data-lang-key="newInvoice"><i data-lucide="plus"></i> Create Invoice</button>
+          </div>
+        </header>
+        <div class="glass p-6">
+          <!-- Invoices Filter Bar: Unified single-row bar -->
+          <div class="invoice-filterbar-wrapper">
+
+            <!-- Search Segment -->
+            <div class="invoice-filterbar-segment invoice-filterbar-search">
+              <i data-lucide="search" class="ifb-icon"></i>
+              <input type="text" id="invoiceSearchText" placeholder="Cari nama pelanggan atau nomor invoice..." oninput="app.filterInvoices()">
+            </div>
+
+            <div class="invoice-filterbar-divider"></div>
+
+            <!-- Status Segment -->
+            <div class="invoice-filterbar-segment">
+              <i data-lucide="filter" class="ifb-icon"></i>
+              <label class="ifb-label">Status</label>
+              <select id="invoiceFilterStatus" onchange="app.filterInvoices()">
+                <option value="all">Semua</option>
+                <option value="Lunas">✅ Lunas</option>
+                <option value="DP / Sebagian">🟡 DP / Sebagian</option>
+                <option value="Belum Lunas">❌ Belum Lunas</option>
+              </select>
+            </div>
+
+            <div class="invoice-filterbar-divider"></div>
+
+            <!-- Date From Segment -->
+            <div class="invoice-filterbar-segment">
+              <i data-lucide="calendar" class="ifb-icon"></i>
+              <label class="ifb-label">Dari</label>
+              <input type="date" id="invoiceFilterDateFrom" onchange="app.filterInvoices()">
+            </div>
+
+            <div class="invoice-filterbar-divider"></div>
+
+            <!-- Date To Segment -->
+            <div class="invoice-filterbar-segment">
+              <label class="ifb-label">Sampai</label>
+              <input type="date" id="invoiceFilterDateTo" onchange="app.filterInvoices()">
+            </div>
+
+            <!-- Clear Button -->
+            <button class="invoice-filterbar-clear" onclick="app.clearInvoiceFilters()" title="Reset Filter">
+              <i data-lucide="x" style="width:15px; height:15px;"></i>
+              <span>Clear</span>
+            </button>
+
+          </div>
+
+          <!-- Result Badge -->
+          <div id="invoiceFilterResultBadge" class="invoice-filter-result-badge" style="display:none;">
+            <i data-lucide="list-filter" style="width:13px; height:13px;"></i>
+            <span id="invoiceFilterResultText">0 hasil</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th data-lang-key="invoiceNo">Invoice #</th>
+                  <th data-lang-key="customer">Customer</th>
+                  <th data-lang-key="location">Location</th>
+                  <th data-lang-key="phone">Phone</th>
+                  <th data-lang-key="cateringDate">Catering Date</th>
+                  <th data-lang-key="amount">Total Amount</th>
+                  <th data-lang-key="status">Status</th>
+                  <th data-lang-key="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="invoicesTable"></tbody>
+            </table>
+          </div>
+
+          <!-- Invoices Pagination -->
+          <div id="invoicesPagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; border-top: 1px solid var(--color-border); padding-top: 16px; flex-wrap: wrap; gap: 12px;">
+            <!-- Injected dynamically via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: CREATE INVOICE -->
+      <section id="viewCreateinvoice" class="view">
+        <header class="page-header">
+          <div>
+            <h1 data-lang-key="newInvoice">Create Invoice</h1>
+            <p data-lang-key="generateInvoiceSub">Generate a new catering invoice and schedule</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-secondary" onclick="app.navigate('invoices')"><i data-lucide="arrow-left"></i> Kembali</button>
+          </div>
+        </header>
+        <div class="glass p-6">
+          <div class="invoice-builder">
+            <div class="invoice-form" style="background: transparent; padding: 0; border: none; box-shadow: none;">
+              <h3>Customer Details</h3>
+              <input type="hidden" id="invEditId" value="">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Customer Name <span style="color: var(--color-danger);">*</span></label>
+                  <input type="text" id="invCustomerName" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                  <label>Vendor <span style="color: var(--color-danger);">*</span></label>
+                  <input type="text" id="invVendor" placeholder="Nama vendor..." required>
+                </div>
+                <div class="form-group">
+                  <label>Catering Location / Alamat <span style="color: var(--color-danger);">*</span></label>
+                  <input type="text" id="invCateringLocation" placeholder="Alamat lengkap..." required>
+                </div>
+                <div class="form-group">
+                  <label>City / Kota <span style="color: var(--color-danger);">*</span></label>
+                  <input type="text" id="invCateringCity" list="citySuggestions" placeholder="Pilih atau ketik kota..." required>
+                </div>
+                <div class="form-group">
+                  <label>Catering Date (Schedule) <span style="color: var(--color-danger);">*</span></label>
+                  <input type="date" id="invCateringDate" required>
+                </div>
+                <div class="form-group">
+                  <label>Invoice Date <span style="color: var(--color-danger);">*</span></label>
+                  <input type="date" id="invDateCreated" required>
+                </div>
+              </div>
+
+              <div class="invoice-section-box" style="margin-top: 24px;">
+                <h3 style="margin-top: 0;">Select Menus</h3>
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px;">
+                  <div class="search-input-wrapper" style="flex: 1; position: relative;">
+                    <input type="text" id="invMenuSelect" placeholder="Ketik untuk mencari & memilih menu..." oninput="app.handleMenuAutocomplete(this, 'create')" onfocus="app.handleMenuAutocomplete(this, 'create')" style="padding-left: 2.5rem; width: 100%; font-size: 0.9rem;">
+                    <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--color-text-muted);"></i>
+                    <div id="invMenuSelectSuggestions" class="autocomplete-suggestions hidden"></div>
+                  </div>
+                  <button class="btn btn-primary" id="btnAddMenuItem" onclick="app.openMenuSelection('create')"><i data-lucide="plus"></i> Pilih Menu</button>
+                </div>
+
+                <div class="table-responsive mt-4">
+                  <table class="table table-bordered invoice-items-table">
+                    <thead>
+                      <tr>
+                        <th class="col-item">Item</th>
+                        <th class="col-price">Price</th>
+                        <th class="col-qty">Qty</th>
+                        <th class="col-unit">Unit</th>
+                        <th class="col-subtotal">Subtotal</th>
+                        <th class="col-memo">Memo</th>
+                        <th class="col-action">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="invItemsTable">
+                      <!-- Items go here -->
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Summary Section with Notes (Left) and Pricing Card (Right) -->
+                <div class="invoice-summary-wrapper" style="display: flex; gap: 20px; align-items: stretch; margin-top: 24px; flex-wrap: wrap;">
+                  <!-- Left: Keterangan (Notes) -->
+                  <div class="glass" style="flex: 1; min-width: 280px; padding: 20px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--color-border); border-radius: 12px; height: fit-content;">
+                    <div style="display: flex; align-items: center; gap: 8px; color: var(--color-primary); font-weight: 600;">
+                      <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+                      <span>Keterangan Invoice (Catatan)</span>
+                    </div>
+                    <textarea id="invNotes" placeholder="Tambahkan catatan khusus untuk katering ini (misal: request pedas, alergi, jam pengiriman, keterangan menu tambahan, dll)..." style="width: 100%; min-height: 70px; height: 80px; resize: vertical; font-size: 0.88rem; background: rgba(0,0,0,0.15); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; color: var(--color-text); line-height: 1.5; outline: none;"></textarea>
+                  </div>
+
+                  <!-- Right: Summary Card -->
+                  <div class="invoice-summary-card" style="margin-top: 0; flex: 1.5; min-width: 280px; max-width: 520px; margin-left: 0; padding: 20px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Subtotal Row -->
+                    <div class="summary-row">
+                      <div class="summary-label">
+                        <i data-lucide="calculator" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                        <span>Subtotal:</span>
+                      </div>
+                      <span id="invSubtotal" class="summary-value">Rp 0</span>
+                    </div>
+
+                    <!-- Diskon Row -->
+                    <div class="summary-row">
+                      <div class="summary-label">
+                        <i data-lucide="percent" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                        <span>Diskon:</span>
+                      </div>
+                      <div class="summary-value">
+                        <div class="discount-input-group">
+                          <select id="invDiscountType" class="discount-select" style="flex: 1;">
+                            <option value="none">Tidak</option>
+                            <option value="percent">Persen (%)</option>
+                            <option value="nominal">Nominal (Rp)</option>
+                          </select>
+                          <input type="text" id="invDiscountValue" value="0" class="discount-input" style="display: none;">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Potongan Diskon Row -->
+                    <div class="summary-row" id="invDiscountRow" style="display: none;">
+                      <div class="summary-label">
+                        <i data-lucide="tag" style="width: 16px; height: 16px; color: var(--color-danger);"></i>
+                        <span>Potongan Diskon:</span>
+                      </div>
+                      <span id="invDiscountLabel" class="discount-amount-label" style="font-weight: 700; color: var(--color-danger); font-size: 0.95rem; width: 185px; justify-content: flex-end; text-align: right; display: inline-flex;">- Rp 0</span>
+                    </div>
+
+                    <!-- Biaya Tambahan Row -->
+                    <div class="summary-row">
+                      <div class="summary-label">
+                        <i data-lucide="plus-circle" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                        <span>Biaya Tambahan:</span>
+                      </div>
+                      <div class="summary-value">
+                        <div class="currency-input-wrapper">
+                          <span class="currency-prefix">Rp</span>
+                          <input type="text" id="invAdditionalFee" value="0" class="currency-field" oninput="app.recalcCreateInvoiceTotals()">
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Grand Total Row -->
+                    <div class="summary-row grand-total-row">
+                      <div class="summary-label grand-total-label">
+                        <i data-lucide="receipt" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                        <span>Grand Total:</span>
+                      </div>
+                      <strong id="invGrandTotal" class="grand-total-value">Rp 0</strong>
+                    </div>
+
+                    <!-- Riwayat Pembayaran Bertahap (Kembali ke Kanan) -->
+                    <div style="border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0; padding: 16px 4px; margin: 8px 0; display: flex; flex-direction: column; gap: 10px;">
+                      <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 12.5px; font-weight: 600; color: var(--color-text); display: flex; align-items: center; gap: 5px;">
+                          <i data-lucide="wallet" style="width: 15px; height: 15px; color: var(--color-primary);"></i>
+                          Riwayat Pembayaran
+                        </span>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="app.addPaymentRow('create')" style="padding: 2px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px;">
+                          <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Tambah
+                        </button>
+                      </div>
+                      <div id="createPaymentList" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Baris pembayaran dinamis -->
+                      </div>
+                    </div>
+
+                    <!-- Total Terbayar Row -->
+                    <div class="summary-row">
+                      <div class="summary-label">
+                        <i data-lucide="check-circle" style="width: 16px; height: 16px; color: var(--color-success);"></i>
+                        <span>Total Terbayar:</span>
+                      </div>
+                      <strong id="invPaidAmountText" class="remaining-balance-value paid-full" style="color: var(--color-success);">Rp 0</strong>
+                      <input type="hidden" id="invPaidAmount" value="0">
+                    </div>
+
+
+
+                    <!-- Sisa Tagihan Row -->
+                    <div class="summary-row">
+                      <div class="summary-label">
+                        <i data-lucide="coins" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                        <span>Sisa Tagihan:</span>
+                      </div>
+                      <span id="invRemainingBalance" class="remaining-balance-value paid-none">Rp 0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions mt-6" style="display: flex; gap: 12px; align-items: center; justify-content: flex-end; max-width: 520px; margin-left: auto;">
+                  <button type="button" class="btn btn-secondary" onclick="app.navigate('invoices')"><i data-lucide="x"></i> Cancel</button>
+                  <button type="button" class="btn btn-warning" onclick="app.saveInvoice(true)"><i data-lucide="file-text"></i> Draft</button>
+                  <button type="button" class="btn btn-success" id="btnSaveInvoice" onclick="app.saveInvoice(false)"><i data-lucide="save"></i> Save Invoice</button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: SCHEDULES -->
+      <section id="viewSchedules" class="view">
+        <header class="page-header">
+          <div>
+            <h1 data-lang-key="schedules">Upcoming Schedules</h1>
+            <p data-lang-key="schedulesSub">Catering dates based on created invoices</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data" data-lang-key="refresh"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button class="btn btn-primary" onclick="app.openAddScheduleModal()"><i data-lucide="calendar-plus"></i> Buat Jadwal</button>
+          </div>
+        </header>
+        <div class="glass p-6">
+          <div class="schedule-dashboard-layout" style="display: flex; gap: 32px; flex-wrap: wrap;">
+            
+            <!-- LEFT COLUMN: Calendar Widget -->
+            <div class="calendar-widget-container" style="flex: 1.3; min-width: 320px; display: flex; flex-direction: column; gap: 16px;">
+              <!-- Calendar Header (Month navigation) -->
+              <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--color-border);">
+                <button class="btn btn-secondary btn-sm" onclick="app.prevMonth()" style="padding: 6px 10px; display: flex; align-items: center; justify-content: center;"><i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i></button>
+                <h3 id="calendarMonthYear" style="font-size: 16px; font-weight: 600; color: var(--color-primary);">Mei 2026</h3>
+                <button class="btn btn-secondary btn-sm" onclick="app.nextMonth()" style="padding: 6px 10px; display: flex; align-items: center; justify-content: center;"><i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i></button>
+              </div>
+              
+              <!-- Calendar Grid Labels -->
+              <div class="calendar-grid-labels" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">
+                <div style="font-size: 11px; font-weight: 700; color: var(--color-danger); padding: 4px 0;" data-lang-key="daySun">Min</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="dayMon">Sen</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="dayTue">Sel</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="dayWed">Rab</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="dayThu">Kam</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="dayFri">Jum</div>
+                <div style="font-size: 11px; font-weight: 600; color: var(--color-text-muted); padding: 4px 0;" data-lang-key="daySat">Sab</div>
+              </div>
+              
+              <!-- Calendar Days Container -->
+              <div id="calendarDays" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
+                <!-- Injected dynamically via JS -->
+              </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Catering Schedule Details -->
+            <div class="schedule-details-container" style="flex: 1; min-width: 320px; display: flex; flex-direction: column; gap: 16px; border-left: 1px solid var(--color-border); padding-left: 24px;">
+              <!-- Detail Header -->
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <h3 style="font-size: 16px; font-weight: 600; display: inline-block; margin-right: 8px;" data-lang-key="schedulesTitle">Jadwal Katering</h3>
+                  <span id="selectedDateLabel" style="font-size: 13px; color: var(--color-primary); font-weight: 600; background: rgba(212, 175, 55, 0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(212, 175, 55, 0.2);">Semua Jadwal</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" id="btnSortSchedules" onclick="app.toggleScheduleSort()" style="padding: 6px 10px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; border: 1px solid var(--color-border);">
+                  <i data-lucide="arrow-up" id="sortIcon" style="width:14px; height: 14px;"></i>
+                  <span id="sortText">Ascending</span>
+                </button>
+              </div>
+              
+              <!-- Search box inside details -->
+              <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+                <div class="search-input-group" style="position: relative; display: flex; align-items: center; flex: 1;">
+                  <input type="text" id="scheduleSearchName" class="schedule-search-input" placeholder="Search customer name..." oninput="app.filterSchedules()" style="width: 100%; padding-left: 36px; height: 42px; border-radius: 8px;">
+                  <i data-lucide="search" style="position: absolute; left: 12px; width: 18px; height: 18px; color: var(--color-primary); pointer-events: none;"></i>
+                </div>
+                <button class="btn btn-secondary" onclick="app.clearScheduleFilters()" style="padding: 0 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--color-border); height: 42px;">
+                  <i data-lucide="x" style="width:16px; height:16px;"></i> <span data-lang-key="clear">Clear</span>
+                </button>
+              </div>
+
+              <!-- Timeline of schedules for selected date -->
+              <div class="schedule-timeline" id="schedulesContainer" style="max-height: 420px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 12px;">
+                <!-- Timeline items injected here -->
+              </div>
+
+              <!-- Pagination Bar -->
+              <div class="pagination-bar" id="schedulesPagination" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: auto; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05);">
+                <!-- Pagination buttons injected here -->
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: MASTER MENU (ADMIN) -->
+      <section id="viewMenus" class="view admin-only">
+        <header class="page-header">
+          <div>
+            <h1>Master Menu</h1>
+            <p>Manage catering products and pricing</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button class="btn btn-secondary admin-only" onclick="app.openImportModal('menu')"><i data-lucide="upload"></i> Import Excel</button>
+            <button class="btn btn-primary" onclick="app.openAddMenuModal()"><i data-lucide="plus"></i> Add Menu</button>
+          </div>
+        </header>
+        <div class="glass p-6">
+          <!-- Menus Search Bar -->
+          <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 16px;">
+            <div class="search-input-group" style="position: relative; display: flex; align-items: center; flex: 1;">
+              <input type="text" id="menuSearchText" class="schedule-search-input" placeholder="Search menu name or description..." oninput="app.filterMenus()" style="width: 100%; padding-left: 36px; height: 42px;">
+              <i data-lucide="search" style="position: absolute; left: 12px; width: 18px; height: 18px; color: var(--color-primary); pointer-events: none;"></i>
+            </div>
+            <button class="btn btn-secondary" onclick="app.clearMenuFilters()" style="padding: 0 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--color-border); height: 42px;">
+              <i data-lucide="x" style="width:16px; height:16px;"></i> <span data-lang-key="clear">Clear</span>
+            </button>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Menu Name</th>
+                  <th>Price</th>
+                  <th>Unit</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="menusTableBody">
+                <!-- Menu rows injected here -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Menus Pagination -->
+          <div id="menusPagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; border-top: 1px solid var(--color-border); padding-top: 16px; flex-wrap: wrap; gap: 12px;">
+            <!-- Injected dynamically via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE: MASTER USER (ADMIN) -->
+      <section id="viewUsers" class="view super-admin-only">
+        <header class="page-header">
+          <div>
+            <h1>Master User</h1>
+            <p>Kelola akun pengguna dan hak akses</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data"><i data-lucide="refresh-cw"></i> Refresh</button>
+            <button class="btn btn-primary" onclick="app.openAddUserModal()"><i data-lucide="user-plus"></i> Add User</button>
+          </div>
+        </header>
+        <div class="glass p-6" style="max-width: 700px; margin: 0 auto;">
+          <!-- User List -->
+          <div id="usersTable" class="user-card-list"></div>
+        </div>
+      </section>
+
+      <!-- PAGE: REPORTS (ADMIN) -->
+      <section id="viewReports" class="view admin-only">
+        <header class="page-header">
+          <div>
+            <h1 data-lang-key="incomeReports">Income Reports</h1>
+            <p data-lang-key="revenueAnalysis">Revenue analysis and accounts receivable</p>
+          </div>
+          <button class="btn btn-secondary" onclick="app.refreshData()" title="Refresh Data"><i data-lucide="refresh-cw"></i> <span data-lang-key="refresh">Refresh</span></button>
+        </header>
+
+        <!-- Section: Hero Revenue Summary -->
+        <div class="glass p-6 mb-6 hero-stat-card">
+          <!-- decorative background glow -->
+          <div class="hero-glow"></div>
+          
+          <h3 id="heroRevenueTitle" class="hero-revenue-title">Total Omset</h3>
+          
+          <div class="hero-revenue-amount-container">
+            <span class="hero-revenue-currency">Rp</span> 
+            <span id="heroRevenueAmount">0</span>
+          </div>
+
+          <div class="hero-stats-container">
+            <div class="hero-mini-stat">
+              <div class="hero-mini-stat-label">Total Transaksi</div>
+              <div id="heroTotalInvoices" class="hero-mini-stat-value">0</div>
+            </div>
+            <div class="hero-mini-stat">
+              <div class="hero-mini-stat-label">Rata-rata Bulanan</div>
+              <div id="heroAvgRevenue" class="hero-mini-stat-value">0</div>
+            </div>
+          </div>
+
+          <!-- Dynamic Report Chart inside Hero Card -->
+          <div style="position: relative; height: 260px; width: 100%; margin-top: 25px;">
+            <canvas id="reportChart"></canvas>
+          </div>
+        </div>
+
+
+        <!-- Section: Filters -->
+        <div class="glass p-6 mb-6">
+          <form id="reportFilterForm">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="reportFilterType">Filter Type</label>
+                <select id="reportFilterType" class="form-control">
+                  <option value="year">By Year</option>
+                  <option value="range">Date Range</option>
+                </select>
+              </div>
+              <div class="form-group" id="reportYearInputGroup">
+                <label for="reportYearSelect">Select Year</label>
+                <select id="reportYearSelect" class="form-control">
+                  <!-- dynamic years will be loaded here -->
+                </select>
+              </div>
+              <div class="form-group hidden" id="reportStartDateGroup">
+                <label for="reportStartDate">Start Date</label>
+                <input type="date" id="reportStartDate" class="form-control">
+              </div>
+              <div class="form-group hidden" id="reportEndDateGroup">
+                <label for="reportEndDate">End Date</label>
+                <input type="date" id="reportEndDate" class="form-control">
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem;">
+              <button type="submit" class="btn btn-primary"><i data-lucide="filter" style="width: 16px;"></i> Apply Filter</button>
+              <button type="button" id="btnResetReportFilters" class="btn btn-secondary"><i data-lucide="rotate-ccw" style="width: 16px;"></i> Reset</button>
+              <button type="button" id="btnExportReportExcel" class="btn btn-success" onclick="app.exportReportToExcel()"><i data-lucide="file-spreadsheet" style="width: 16px;"></i> Export Excel</button>
+              <button type="button" id="btnExportReportPDF" class="btn btn-danger" onclick="app.exportReportToPDF()"><i data-lucide="file-text" style="width: 16px;"></i> Export PDF</button>
+            </div>
+          </form>
+        </div>
+
+
+        <!-- Section: Monthly Summary & Client Rating Side by Side -->
+        <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 1.5rem; align-items: stretch;">
+          
+          <!-- Left Container: Monthly Summary Table -->
+          <div class="glass p-6" style="flex: 1.2; min-width: 320px; margin-top: 0;">
+            <h3 style="margin-bottom: 1rem;">Monthly Summary Report</h3>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th style="text-align: center;">Invoices Count</th>
+                    <th style="text-align: right;">Total Amount</th>
+                    <th style="text-align: right;">Total Paid</th>
+                    <th style="text-align: right;">Remaining Balance</th>
+                  </tr>
+                </thead>
+                <tbody id="reportTableBody">
+                  <!-- dynamic rows will be rendered here -->
+                </tbody>
+                <tfoot>
+                  <tr id="reportTableTotalRow" style="font-weight: bold; border-top: 2px solid var(--color-border); background: rgba(255,255,255,0.03);">
+                    <!-- total row will be rendered here -->
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Right Container: Client Rating / Leaderboard -->
+          <div class="glass p-6" style="flex: 1; min-width: 320px; margin-top: 0;">
+            <h3 style="margin-bottom: 1rem;"><i data-lucide="award" style="width: 18px; margin-right: 8px; vertical-align: middle; color: var(--color-primary)"></i> Vendor Rating</h3>
+            <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 1rem;">Daftar vendor dengan kontribusi nilai transaksi terbesar pada periode terpilih.</p>
+            <div class="table-responsive">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px; text-align: center;">Rank</th>
+                    <th>Vendor Name</th>
+                    <th style="text-align: center;">Total Events</th>
+                    <th style="text-align: right;">Total Revenue (Rp)</th>
+                    <th style="text-align: right;">Remaining Balance (Rp)</th>
+                  </tr>
+                </thead>
+                <tbody id="clientRatingTableBody">
+                  <!-- dynamic rows will be rendered here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Section: GIS Map Visualization -->
+        <div class="glass p-6" style="position: relative; z-index: 5; margin-top: 20px;">
+          <h3 style="margin-bottom: 1rem;"><i data-lucide="map" style="width: 18px; margin-right: 8px; vertical-align: middle; color: var(--color-primary)"></i> Wilayah Distribusi Katering (GIS Map)</h3>
+          <div id="reportMap" style="height: 380px; border-radius: 12px; overflow: hidden; border: 1px solid var(--color-border); position: relative; z-index: 1;"></div>
+        </div>
+      </section>
+
+      <!-- PAGE: SETTINGS -->
+      <section id="viewSettings" class="view">
+        <header class="page-header">
+          <div>
+            <h1>System Settings</h1>
+            <p>Configure database connection</p>
+          </div>
+        </header>
+        <div class="glass p-6" style="max-width: 600px;">
+          <!-- Payment Accounts (Admin & Super Admin) -->
+          <div style="margin-bottom: 2rem;">
+            <h3>Informasi Pembayaran</h3>
+            <div class="form-group" style="margin-top: 1rem;">
+              <label>Informasi Rekening Pembayaran</label>
+              <textarea id="settingPaymentAccounts" class="form-control" rows="3" placeholder="Contoh:&#10;BCA: 123-456-7890 a.n. Katering&#10;Mandiri: 098-765-4321 a.n. Katering" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%;"></textarea>
+              <p class="text-muted" style="font-size: 11px; margin-top: 4px;">Teks ini akan ditampilkan di struk PDF Invoice. Gunakan Enter (baris baru) untuk memisahkan bank.</p>
+            </div>
+            
+            <div class="form-group" style="margin-top: 1rem;">
+              <label>Nomor WhatsApp / Kontak Bisnis</label>
+              <input type="text" id="settingCompanyPhone" class="form-control" placeholder="Contoh: +62 812-xxxx-xxxx" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%;">
+              <p class="text-muted" style="font-size: 11px; margin-top: 4px;">Nomor kontak bisnis yang akan ditampilkan pada bagian atas (header) PDF Invoice.</p>
+            </div>
+          </div>
+
+          <div class="super-admin-only" style="margin-bottom: 2rem;">
+            <h3>Google Sheets Integration</h3>
+            <p class="text-muted mb-4">Paste the Google Apps Script Web App URL below to sync data.</p>
+            <div class="form-group">
+              <label>API URL</label>
+              <input type="text" id="settingApiUrl" placeholder="https://script.google.com/macros/s/...">
+            </div>
+          </div>
+          
+          <h3>Business Logo</h3>
+          <p class="text-muted mb-4">Upload business logo for invoices, login page, and sidebar.</p>
+          
+          <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+            <div id="settingsLogoPreview" style="width: 100px; height: 100px; border-radius: 8px; border: 1px dashed var(--color-border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: rgba(0,0,0,0.1);">
+              <span class="text-muted" style="font-size: 12px; text-align: center; padding: 4px;">No Logo</span>
+            </div>
+            <div>
+              <input type="file" id="settingLogoInput" accept="image/*" style="display: none;" onchange="app.saveLogo(event)">
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('settingLogoInput').click()"><i data-lucide="upload"></i> Upload Logo</button>
+                <button class="btn btn-danger btn-sm" onclick="app.removeLogo()"><i data-lucide="trash-2"></i> Remove</button>
+              </div>
+              <p class="text-muted mt-2" style="font-size: 11px;">Recommended square or landscape PNG/JPG format.</p>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 1rem;">
+            <label>Or Use Google Drive Link / Logo URL:</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="settingLogoUrl" placeholder="https://drive.google.com/file/d/... or image URL" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px;">
+              <button class="btn btn-primary btn-sm" onclick="app.saveLogoUrl()" style="white-space: nowrap; height: 38px;"><i data-lucide="save"></i> Save URL</button>
+            </div>
+            <p class="text-muted mt-1" style="font-size: 11px;">Supports Google Drive share links (will be automatically converted to direct image link in real-time).</p>
+          </div>
+
+          <!-- Google Calendar Sharing (Admin & Super Admin only) -->
+          <div class="admin-only" style="margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+            <h3>Bagi Kalender Google</h3>
+            <p class="text-muted mb-3" style="font-size: 11px;">Masukkan email akun Google baru untuk menyinkronkan Kalender Katering ini ke Google Calendar mereka secara otomatis.</p>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 1.25rem;">
+              <input type="email" id="shareCalendarEmail" placeholder="contoh: kustomer@gmail.com" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px; font-size: 13px;">
+              <button class="btn btn-primary btn-sm" onclick="app.addCalendarShare()" style="white-space: nowrap; height: 38px;"><i data-lucide="share-2"></i> Bagi Kalender</button>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <label style="font-weight: 600; margin: 0; font-size: 12px;">Daftar Akun Google yang Disinkronkan:</label>
+              <button class="btn btn-secondary btn-xs" onclick="app.loadCalendarShares()" title="Segarkan Daftar" style="padding: 2px 6px; font-size: 10px; height: 20px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Segarkan
+              </button>
+            </div>
+            <div id="calendarShareList" style="background: rgba(0,0,0,0.1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; max-height: 180px; overflow-y: auto;">
+              <div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">Memuat daftar email...</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+            <button class="btn btn-primary" id="btnSaveSettings" style="width: 100%;">Save Settings</button>
+          </div>
+
+          <div class="mt-6 p-4 super-admin-only" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
+            <p><i data-lucide="info" style="display:inline-block; vertical-align:middle; width:16px; height:16px;"></i> Open the <code>Google_Sheets_Tutorial.md</code> file for a complete guide on how to get this URL.</p>
+          </div>
+        </div>
+      </section>
+
+
+
+      <!-- FOOTER -->
+      <footer style="text-align: center; margin-top: 40px; padding-top: 20px; padding-bottom: 20px; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 13px;">
+        &copy; <span id="currentYear"></span> <strong>Poetry's Catering</strong>. All rights reserved.<br>
+        <span style="font-size: 11px; opacity: 0.7;">Crafted with passion for culinary excellence.</span>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- PAGE: GUEST AUTO DOWNLOAD PAGE -->
+  <section id="viewGuestInvoice" class="view" style="display: none; padding: 40px 20px; text-align: center; max-width: 500px; margin: 80px auto;">
+    <div class="glass p-8" style="border-radius: 16px; border: 1px solid var(--color-border); background: var(--color-card-bg); box-shadow: var(--shadow-lg);">
+      <!-- Loading Icon / Spinner -->
+      <div id="guestDownloadSpinner" class="spinner" style="width: 55px; height: 55px; border-width: 5px; margin: 0 auto 20px auto; border-top-color: var(--color-primary);"></div>
+      
+      <!-- Success Icon -->
+      <div id="guestDownloadSuccessIcon" style="display: none; margin-bottom: 20px;">
+        <i data-lucide="file-text" style="width: 60px; height: 60px; color: #10b981; display: inline-block;"></i>
+      </div>
+      
+      <h2 id="guestDownloadTitle" style="color: var(--color-text); font-size: 20px; margin-bottom: 10px; font-weight: 700;">Preparing Your Invoice...</h2>
+      <p id="guestDownloadMsg" style="color: var(--color-text-muted); font-size: 13px; margin-bottom: 25px; line-height: 1.6;">Please wait, loading invoice data...</p>
+      
+      <div id="guestManualDownloadBlock" style="display: none;">
+        <button class="btn btn-primary btn-block" id="btnGuestManualDownload" style="font-weight: 700; padding: 14px; font-size: 16px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;"><i data-lucide="download" style="width: 20px; height: 20px;"></i> Download Invoice PDF</button>
+        <p style="font-size: 11px; color: var(--color-text-muted); margin-top: 10px;">Tap the button above to download the invoice to your device.</p>
+      </div>
+
+      <!-- Guest Invoice Error Message (hidden by default) -->
+      <div id="guestInvoiceError" style="display: none; text-align: center; margin-top: 10px;">
+        <i data-lucide="alert-triangle" style="width: 48px; height: 48px; color: var(--color-danger); margin-bottom: 15px; display: inline-block;"></i>
+        <h3 style="color: var(--color-danger); margin-bottom: 8px;">Failed to Load Invoice</h3>
+        <p id="guestInvoiceErrorText" style="color: var(--color-text-muted); font-size: 13px; line-height: 1.5;">Invoice not found or a connection error occurred.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODALS -->
+  <div class="modal-backdrop hidden" id="importExcelModal">
+    <div class="modal glass" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3 id="importModalTitle">Import Excel</h3>
+        <button class="btn-icon" onclick="app.closeModal('importExcelModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+        <!-- Step 1: Download Template -->
+        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--color-border); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div>
+            <h4 style="margin: 0 0 2px 0; font-size: 13px; font-weight: 600; color: var(--color-text);">Unduh Template Excel</h4>
+            <p style="margin: 0; font-size: 11px; color: var(--color-text-muted);">Gunakan format kolom yang sesuai standar sistem.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btnDownloadImportTemplate" style="padding: 6px 12px; font-size: 11.5px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+            <i data-lucide="download" style="width: 14px; height: 14px;"></i> Download
+          </button>
+        </div>
+
+        <!-- Step 2: Upload Area (Drop Zone) -->
+        <input type="file" id="modalImportFileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleImportFileChange(event)">
+        <div id="importDropZone" onclick="document.getElementById('modalImportFileInput').click()" style="border: 2px dashed var(--color-border); border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(0, 0, 0, 0.1);">
+          <i data-lucide="file-spreadsheet" id="dropZoneIcon" style="width: 44px; height: 44px; color: var(--color-primary);"></i>
+          <span id="dropZoneText" style="font-size: 13px; font-weight: 500; color: var(--color-text);">Choose or drag Excel file here</span>
+          <span id="dropZoneSubtext" style="font-size: 11px; color: var(--color-text-muted);">Supports .xlsx, .xls, .csv formats</span>
+        </div>
+
+        <!-- Step 3: Action Buttons -->
+        <div class="form-actions" style="display: flex; gap: 10px; margin-top: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal('importExcelModal')" style="flex: 1;"><i data-lucide="x"></i> Cancel</button>
+          <button type="button" class="btn btn-success" id="btnSubmitImport" onclick="app.executeImport()" disabled style="flex: 1; opacity: 0.5; cursor: not-allowed; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+            <i data-lucide="upload-cloud"></i> Start Import
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="menuModal">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h3>Add New Menu</h3>
+        <button class="btn-icon" onclick="app.closeModal('menuModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="menuForm">
+          <input type="hidden" id="menuId">
+          <div class="form-group">
+            <label>Menu Name <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="menuName" required>
+          </div>
+          <div class="form-group">
+            <label>Price (Rp) <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="menuPrice" required>
+          </div>
+          <div class="form-group">
+            <label>Unit (e.g. pax, box, porsi, tumpeng) <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="menuUnit" placeholder="e.g. pax" required>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea id="menuDesc" rows="3"></textarea>
+          </div>
+          <div class="form-actions mt-4" style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('menuModal')"><i data-lucide="x"></i> Cancel</button>
+            <button type="button" class="btn btn-draft" onclick="app.saveMenu(event, true)"><i data-lucide="file-text"></i> Draft</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Menu</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="userModal">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h3>Add New User</h3>
+        <button class="btn-icon" onclick="app.closeModal('userModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="userForm" onsubmit="app.saveUser(event)">
+          <input type="hidden" id="userId">
+          <div class="form-group">
+            <label>Full Name <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="userFullName" placeholder="User's full name" required>
+          </div>
+          <div class="form-group">
+            <label>Username <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="userName" placeholder="Username for login" required>
+          </div>
+          <div class="form-group">
+            <label>Password <span style="color: var(--color-danger);">*</span></label>
+            <div class="password-input-wrapper">
+              <input type="password" id="userPassword" required autocomplete="new-password">
+              <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('userPassword')" title="Show/Hide Password" tabindex="-1">
+                <i data-lucide="eye" style="width:16px; height:16px;"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select id="userRole">
+              <option value="user">User (Invoice & Standalone Schedules Only)</option>
+              <option value="admin">Admin (All Access, No User Mgmt)</option>
+              <option value="super admin">Super Admin (All Access)</option>
+            </select>
+          </div>
+          <div class="form-actions mt-4" style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('userModal')"><i data-lucide="x"></i> Cancel</button>
+            <button type="button" class="btn btn-draft" onclick="app.saveUser(event, 'Pending')"><i data-lucide="file-text"></i> Draft</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save User</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- USER PERMISSIONS MODAL (SUPER ADMIN ONLY) -->
+  <div class="modal-backdrop hidden" id="userPermissionsModal">
+    <div class="modal glass" style="max-width: 450px;">
+      <div class="modal-header">
+        <h3>Atur Hak Akses Menu</h3>
+        <button class="btn-icon" onclick="app.closeModal('userPermissionsModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 1rem;">
+          Tentukan menu mana saja yang boleh diakses oleh <strong id="permModalUserDisplayName" style="color: var(--color-text);"></strong> (@<span id="permModalUsername"></span>) sebagai <span id="permModalRole" class="badge bg-secondary" style="font-size:10px;"></span>:
+        </p>
+        
+        <form id="userPermissionsForm" onsubmit="app.saveUserPermissions(event)">
+          <input type="hidden" id="permModalUserId">
+          
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 1.5rem;">
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxDashboard" value="dashboard" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Dashboard
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxInvoices" value="invoices" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Invoices (Daftar Tagihan)
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxSchedules" value="schedules" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Schedules (Jadwal Kalender)
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxMenus" value="menus" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Master Menu
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxUsers" value="users" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Master User (Manajemen Pengguna)
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxReports" value="reports" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Reports (Laporan Tren & Grafik)
+            </label>
+            <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+              <input type="checkbox" id="permCheckboxSettings" value="settings" style="width: 16px; height: 16px; accent-color: var(--color-primary);">
+              Settings (Pengaturan Aplikasi)
+            </label>
+          </div>
+          
+          <div class="alert alert-info" style="font-size: 11px; padding: 10px; border-radius: 8px; background: rgba(14,165,233,0.06); border: 1px solid rgba(14,165,233,0.15); color: var(--color-primary); line-height: 1.4; margin-bottom: 1.5rem;">
+            <i data-lucide="info" style="display: inline-block; vertical-align: middle; width: 14px; height: 14px; margin-right: 4px;"></i>
+            <strong>Info:</strong> Jika semua checkbox dikosongkan, hak akses default berdasarkan peran/role pengguna yang akan otomatis digunakan.
+          </div>
+          
+          <div class="form-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('userPermissionsModal')"><i data-lucide="x"></i> Batal</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan Hak Akses</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT INVOICE MODAL -->
+  <div class="modal-backdrop hidden" id="editInvoiceModal" style="z-index: 2000;">
+    <div class="modal glass" style="max-width: 1000px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; border-radius: 20px !important; overflow: hidden;">
+      
+      <!-- Modal Header -->
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <div>
+          <h2 style="margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--color-primary);" data-lang-key="editInvoice">Edit Invoice</h2>
+          <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--color-text-muted);">Perbarui rincian faktur dan jadwal katering Anda</p>
+        </div>
+        <button type="button" class="btn-icon" onclick="app.closeModal('editInvoiceModal')" style="padding: 4px; border-radius: 50%;"><i data-lucide="x" style="width: 20px; height: 20px;"></i></button>
+      </div>
+
+      <!-- Modal Scrollable Content Body -->
+      <div class="modal-body" style="padding: 24px; overflow-y: auto; flex: 1;">
+        <form id="editInvoiceForm" onsubmit="app.saveEditedInvoice(event)" style="background: transparent; padding: 0; border: none; box-shadow: none; margin: 0;">
+          <input type="hidden" id="editInvId">
+          
+          <h3>Customer Details</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Customer Name <span style="color: var(--color-danger);">*</span></label>
+              <input type="text" id="editInvCustomerName" required>
+            </div>
+            <div class="form-group">
+              <label>Vendor <span style="color: var(--color-danger);">*</span></label>
+              <input type="text" id="editInvVendor" required>
+            </div>
+            <div class="form-group">
+              <label>Catering Location / Address <span style="color: var(--color-danger);">*</span></label>
+              <input type="text" id="editInvCateringLocation" required>
+            </div>
+            <div class="form-group">
+              <label>City <span style="color: var(--color-danger);">*</span></label>
+              <input type="text" id="editInvCateringCity" list="citySuggestions" placeholder="Select or type city..." required>
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Catering Date <span style="color: var(--color-danger);">*</span></label>
+              <input type="date" id="editInvCateringDate" required>
+            </div>
+          </div>
+          
+          <div class="invoice-section-box" style="margin-top: 24px;">
+            <h3 style="margin-top: 0;">Edit Menu Items</h3>
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px;">
+              <div class="search-input-wrapper" style="flex: 1; position: relative;">
+                <input type="text" id="editInvMenuSelect" placeholder="Type to search & select menu..." oninput="app.handleMenuAutocomplete(this, 'edit')" onfocus="app.handleMenuAutocomplete(this, 'edit')" style="padding-left: 2.5rem; width: 100%; font-size: 0.9rem;">
+                <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--color-text-muted);"></i>
+                <div id="editInvMenuSelectSuggestions" class="autocomplete-suggestions hidden"></div>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="app.openMenuSelection('edit')"><i data-lucide="plus"></i> Select Menu</button>
+            </div>
+            
+            <div class="table-responsive mt-4">
+              <table class="table table-bordered invoice-items-table">
+                <thead>
+                  <tr>
+                    <th class="col-item">Item</th>
+                    <th class="col-price">Price</th>
+                    <th class="col-qty">Qty</th>
+                    <th class="col-unit">Unit</th>
+                    <th class="col-subtotal">Subtotal</th>
+                    <th class="col-memo">Memo</th>
+                    <th class="col-action">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="editInvItemsTable">
+                  <!-- Items go here -->
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Summary Section with Notes (Left) and Pricing Card (Right) -->
+            <div class="invoice-summary-wrapper" style="display: flex; gap: 20px; align-items: stretch; margin-top: 24px; flex-wrap: wrap;">
+              <!-- Left: Keterangan (Notes) -->
+              <div class="glass" style="flex: 1; min-width: 280px; padding: 20px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--color-border); border-radius: 12px; height: fit-content;">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--color-primary); font-weight: 600;">
+                  <i data-lucide="file-text" style="width: 18px; height: 18px;"></i>
+                  <span>Invoice Notes / Remarks</span>
+                </div>
+                <textarea id="editInvNotes" placeholder="Add special notes for this catering (e.g. spicy requests, allergies, delivery times, additional menu details, etc)..." style="width: 100%; min-height: 70px; height: 80px; resize: vertical; font-size: 0.88rem; background: rgba(0,0,0,0.15); border: 1px solid var(--color-border); border-radius: 8px; padding: 12px; color: var(--color-text); line-height: 1.5; outline: none;"></textarea>
+              </div>
+
+              <!-- Right: Summary Card -->
+              <div class="invoice-summary-card" style="margin-top: 0; flex: 1.5; min-width: 280px; max-width: 520px; margin-left: 0; padding: 20px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <!-- Subtotal Row -->
+                <div class="summary-row">
+                  <div class="summary-label">
+                    <i data-lucide="calculator" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                    <span>Subtotal:</span>
+                  </div>
+                  <span id="editInvSubtotal" class="summary-value">Rp 0</span>
+                </div>
+
+                <!-- Diskon Row -->
+                <div class="summary-row">
+                  <div class="summary-label">
+                    <i data-lucide="percent" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                    <span>Diskon:</span>
+                  </div>
+                  <div class="summary-value">
+                    <div class="discount-input-group">
+                      <select id="editInvDiscountType" class="discount-select" style="flex: 1;">
+                        <option value="none">Tidak</option>
+                        <option value="percent">Persen (%)</option>
+                        <option value="nominal">Nominal (Rp)</option>
+                      </select>
+                      <input type="text" id="editInvDiscountValue" value="0" class="discount-input" style="display: none;">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Potongan Diskon Row -->
+                <div class="summary-row" id="editInvDiscountRow" style="display: none;">
+                  <div class="summary-label">
+                    <i data-lucide="tag" style="width: 16px; height: 16px; color: var(--color-danger);"></i>
+                    <span>Potongan Diskon:</span>
+                  </div>
+                  <span id="editInvDiscountLabel" class="discount-amount-label" style="font-weight: 700; color: var(--color-danger); font-size: 0.95rem; width: 185px; justify-content: flex-end; text-align: right; display: inline-flex;">- Rp 0</span>
+                </div>
+
+                <!-- Biaya Tambahan Row -->
+                <div class="summary-row">
+                  <div class="summary-label">
+                    <i data-lucide="plus-circle" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                    <span>Biaya Tambahan:</span>
+                  </div>
+                  <div class="summary-value">
+                    <div class="currency-input-wrapper">
+                      <span class="currency-prefix">Rp</span>
+                      <input type="text" id="editInvAdditionalFee" value="0" class="currency-field" oninput="app.recalcEditInvoiceTotals()">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Grand Total Row -->
+                <div class="summary-row grand-total-row">
+                  <div class="summary-label grand-total-label">
+                    <i data-lucide="receipt" style="width: 18px; height: 18px; color: var(--color-primary);"></i>
+                    <span>Grand Total:</span>
+                  </div>
+                  <strong id="editInvGrandTotal" class="grand-total-value">Rp 0</strong>
+                </div>
+
+                <!-- Riwayat Pembayaran Bertahap (Kembali ke Kanan) -->
+                <div style="border-top: 1px dashed #e2e8f0; border-bottom: 1px dashed #e2e8f0; padding: 16px 4px; margin: 8px 0; display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 12.5px; font-weight: 600; color: var(--color-text); display: flex; align-items: center; gap: 5px;">
+                      <i data-lucide="wallet" style="width: 15px; height: 15px; color: var(--color-primary);"></i>
+                      Riwayat Pembayaran
+                    </span>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="app.addPaymentRow('edit')" style="padding: 2px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px;">
+                      <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Tambah
+                    </button>
+                  </div>
+                  <div id="editPaymentList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Baris pembayaran dinamis -->
+                  </div>
+                </div>
+
+                <!-- Total Terbayar Row -->
+                <div class="summary-row">
+                  <div class="summary-label">
+                    <i data-lucide="check-circle" style="width: 16px; height: 16px; color: var(--color-success);"></i>
+                    <span>Total Terbayar:</span>
+                  </div>
+                  <strong id="editInvPaidAmountText" class="remaining-balance-value paid-full" style="color: var(--color-success);">Rp 0</strong>
+                  <input type="hidden" id="editInvPaidAmount" value="0">
+                </div>
+
+                <!-- Sisa Tagihan Row -->
+                <div class="summary-row">
+                  <div class="summary-label">
+                    <i data-lucide="coins" style="width: 16px; height: 16px; color: var(--color-text-muted);"></i>
+                    <span>Remaining Balance:</span>
+                  </div>
+                  <span id="editInvRemainingBalance" class="remaining-balance-value paid-none">Rp 0</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-actions mt-6" style="display: flex; gap: 12px; align-items: center; justify-content: flex-end; max-width: 440px; margin-left: auto;">
+              <button type="button" class="btn btn-secondary" onclick="app.closeModal('editInvoiceModal')"><i data-lucide="x"></i> Cancel</button>
+              <button type="button" class="btn btn-warning" onclick="app.saveEditedInvoice(event, 'Draft')" style="background: rgba(212, 175, 55, 0.15); border: 1px solid var(--color-primary); color: var(--color-primary);"><i data-lucide="file-text"></i> Draft</button>
+              <button type="submit" class="btn btn-success"><i data-lucide="save"></i> Save Changes</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD SCHEDULE MODAL -->
+  <div class="modal-backdrop hidden" id="addScheduleModal">
+    <div class="modal glass">
+      <div class="modal-header">
+        <h2 id="scheduleModalTitle" style="margin:0; font-size: 1.25rem; font-weight: 600;">Create New Schedule</h2>
+        <button class="btn btn-secondary btn-sm" onclick="app.closeModal('addScheduleModal')">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="addScheduleForm">
+          <input type="hidden" id="scheduleId">
+          <div class="form-group">
+            <label>Schedule Type <span style="color: var(--color-danger);">*</span></label>
+            <select id="scheduleType" required>
+              <option value="Booking">Catering Booking</option>
+              <option value="Meeting">Meeting</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Event Name / Client <span style="color: var(--color-danger);">*</span></label>
+            <input type="text" id="scheduleTitle" placeholder="e.g. Wedding Mr. Budi" required>
+          </div>
+          <div class="form-group">
+            <label>Event / Meeting Date <span style="color: var(--color-danger);">*</span></label>
+            <input type="date" id="scheduleDate" required>
+          </div>
+          <div class="form-group" id="scheduleTimeGroup" style="display: none;">
+            <label>Meeting Time <span style="color: var(--color-danger);">*</span></label>
+            <input type="time" id="scheduleTime">
+          </div>
+          <div class="form-group">
+            <label>Location</label>
+            <input type="text" id="scheduleLocation" placeholder="Location address">
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea id="scheduleNotes" rows="3" placeholder="Add specific details if any..."></textarea>
+          </div>
+          <div class="form-actions mt-4" style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('addScheduleModal')"><i data-lucide="x"></i> Cancel</button>
+            <button type="button" class="btn btn-draft" onclick="app.saveSchedule(event, 'Draft')"><i data-lucide="file-text"></i> Draft</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Schedule</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE MODAL -->
+  <div class="modal-backdrop hidden" id="profileModal" style="z-index: 2000;">
+    <div class="modal glass" style="max-width: 450px; width: 90%;">
+      <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.25rem;"><i data-lucide="user-cog" style="color: var(--color-primary); width: 22px; height: 22px;"></i> Profile Settings</h3>
+        <button class="btn-icon" onclick="app.closeModal('profileModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="profileForm" onsubmit="app.saveProfile(event)">
+          <div class="form-group">
+            <label>Full Name <span style="color: var(--color-danger);">*</span></label>
+            <div class="input-wrapper">
+              <i data-lucide="user-check"></i>
+              <input type="text" id="profileName" placeholder="Your Full Name" required style="padding-left: 2.75rem;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Username <span style="color: var(--color-danger);">*</span></label>
+            <div class="input-wrapper">
+              <i data-lucide="user"></i>
+              <input type="text" id="profileUsername" placeholder="Username" required style="padding-left: 2.75rem;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Password <span style="color: var(--color-danger);">*</span></label>
+            <div class="input-wrapper">
+              <i data-lucide="lock"></i>
+              <input type="password" id="profilePassword" placeholder="New Password" required style="padding-left: 2.75rem;">
+            </div>
+          </div>
+          
+          <div class="form-actions mt-4" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('profileModal')"><i data-lucide="x"></i> Cancel</button>
+            <button type="button" class="btn btn-draft" onclick="app.saveProfile(event, true)"><i data-lucide="file-text"></i> Draft</button>
+            <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Changes</button>
+          </div>
+          
+          <div style="margin: 1rem 0; height: 1px; background: var(--color-border);"></div>
+          
+          <button type="button" class="btn btn-danger btn-block" onclick="app.logoutFromProfile()" style="height: 42px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;"><i data-lucide="log-out" style="width: 16px; height: 16px;"></i> Log Out Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAYMENT PAYOFF MODAL (PELUNASAN) -->
+  <div id="paymentPayoffModal" class="modal-backdrop hidden" style="z-index: 2000;">
+    <div class="modal glass" style="max-width: 480px; padding: 2rem; border-radius: 16px; border: 1px solid var(--color-border); box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: none; padding: 0;">
+        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--color-primary); margin: 0; display: flex; align-items: center; gap: 8px;"><i data-lucide="wallet" style="color: var(--color-accent); width: 24px; height: 24px;"></i> Invoice Payment / Payoff</h3>
+        <button class="btn-icon" onclick="app.closeModal('paymentPayoffModal')" style="background: none; border: none; color: var(--color-text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="paymentPayoffForm" onsubmit="app.savePaymentPayoff(event)">
+          <input type="hidden" id="payoffInvoiceId">
+          
+          <!-- Invoice Brief Info Card -->
+          <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="text-muted" style="font-size: 13px;">Invoice No.</span>
+              <span id="payoffInvoiceNumber" style="font-weight: 600; color: #fff;">-</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="text-muted" style="font-size: 13px;">Total Invoice</span>
+              <span id="payoffTotalAmount" style="font-weight: 500; color: var(--color-text);">-</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+              <span class="text-muted" style="font-size: 13px;">Amount Paid</span>
+              <span id="payoffPaidAmount" style="font-weight: 500; color: var(--color-success);">-</span>
+            </div>
+            <div style="height: 1px; background: var(--color-border); margin: 10px 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-weight: 600;">
+              <span style="font-size: 14px; color: var(--color-accent);">Remaining Balance</span>
+              <span id="payoffRemainingAmount" style="font-size: 16px; color: var(--color-accent);">-</span>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span>Payment Amount (Rp) <span style="color: var(--color-danger);">*</span></span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="app.autoFillPayoff()" style="padding: 2px 8px; font-size: 11px; border-radius: 4px;">Pay in Full</button>
+            </label>
+            <div class="input-wrapper">
+              <i data-lucide="coins"></i>
+              <input type="number" id="payoffAmountInput" required min="1" placeholder="Enter payment amount" style="padding-left: 2.75rem; height: 44px;">
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 12px; margin-top: 1.5rem;">
+            <button type="button" class="btn btn-secondary" onclick="app.closeModal('paymentPayoffModal')" style="flex: 1; height: 42px; font-weight: 600;">Cancel</button>
+            <button type="submit" class="btn btn-primary" style="flex: 1; height: 42px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;"><i data-lucide="check-circle" style="width: 18px; height: 18px;"></i> Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOM NOTIFICATION MODAL (ALERT/CONFIRM) -->
+  <div class="modal-backdrop hidden" id="customAlertModal" style="z-index: 99999;">
+    <div class="modal glass" style="max-width: 400px; width: 90%; text-align: center; padding: 28px; border-radius: 16px;">
+      <div id="customAlertIconContainer" style="margin-bottom: 20px; display: flex; justify-content: center;">
+        <!-- Injected icon dynamically -->
+      </div>
+      <h3 id="customAlertTitle" style="font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #fff;">Notification</h3>
+      <p id="customAlertMessage" style="font-size: 14px; color: var(--color-text-muted); margin-bottom: 24px; line-height: 1.6; padding: 0 8px;"></p>
+      
+      <div id="customAlertActionContainer" style="display: flex; gap: 10px; justify-content: center;">
+        <button class="btn btn-primary" id="btnCustomAlertOk" style="min-width: 100px; padding: 8px 24px;">OK</button>
+        <button class="btn btn-secondary hidden" id="btnCustomAlertCancel" style="min-width: 100px; padding: 8px 24px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MENU SELECTION SPASH SCREEN MODAL -->
+  <div class="modal-backdrop hidden" id="menuSelectionModal" style="z-index: 2500;">
+    <div class="modal glass" style="max-width: 750px; width: 95%;">
+      <div class="modal-header">
+        <h3 id="menuSelectionModalTitle" style="margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--color-primary);">Select Catering Menu</h3>
+        <button class="btn btn-secondary btn-sm" onclick="app.closeModal('menuSelectionModal')">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Typing search / hint -->
+        <div style="position: relative; margin-bottom: 15px;">
+          <input type="text" id="menuModalSearch" placeholder="Search menu name..." oninput="app.filterMenuModalList()" style="padding-left: 2.5rem; width: 100%;" autocomplete="off">
+          <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--color-text-muted);"></i>
+        </div>
+        
+        <!-- Menu list check boxes and quantities -->
+        <div class="table-responsive" style="min-height: 250px; max-height: 400px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; margin-bottom: 15px;">
+          <table class="table table-bordered" style="margin-bottom: 0; table-layout: fixed; width: 100%;">
+            <thead>
+              <tr style="background: rgba(212, 175, 55, 0.05);">
+                <th style="width: 40px !important; max-width: 40px; text-align: center; vertical-align: middle; padding: 8px 4px !important;">✓</th>
+                <th style="vertical-align: middle; text-align: left;">Menu Name</th>
+                <th style="text-align: right; vertical-align: middle;">Price</th>
+                <th style="text-align: center; vertical-align: middle;">Unit</th>
+              </tr>
+            </thead>
+            <tbody id="menuModalList">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination controls -->
+        <div id="menuModalPagination" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-border); padding-top: 12px;">
+          <!-- Rendered dynamically -->
+        </div>
+        
+        <div class="form-actions mt-4" style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--color-border); padding-top: 15px;">
+          <button type="button" class="btn btn-secondary" onclick="app.closeModal('menuSelectionModal')">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnConfirmMenuSelection" onclick="app.confirmMenuSelection()"><i data-lucide="plus"></i> Add Selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="pdfTemplateWrapper" style="z-index: 3000;">
+    <div class="modal glass" style="max-width: 850px; width: 95%; padding: 0;">
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Print Preview</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-success" onclick="app.confirmPrintInvoice()"><i data-lucide="download"></i> Download PDF</button>
+          <button class="btn-icon" onclick="app.closeModal('pdfTemplateWrapper')"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="modal-body" style="background: #e2e8f0; padding: 24px; max-height: 80vh; overflow-y: auto; display: flex; justify-content: center;">
+        
+        <div class="pdf-container" id="pdfContent" style="width: 210mm; min-height: 297mm; position: relative; padding: 40px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #1e293b; line-height: 1.5; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 12px; box-sizing: border-box;">
+      
+      <!-- HEADER with Logo and Company Info (Pure HTML Table) -->
+      <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #f1f5f9; padding-bottom: 15px; margin-bottom: 15px;">
+        <tr>
+          <!-- Left: Company Info -->
+          <td style="vertical-align: middle; text-align: left; padding-bottom: 10px;">
+            <h2 style="margin: 0; color: #d4af37; font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 800; letter-spacing: 0.5px;">Poetry's Catering</h2>
+            <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b; font-weight: 500;">Premium Catering & Operational Management</p>
+            <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Serang, Banten • WhatsApp: <span id="pdfCompanyPhone">+62 812-xxxx-xxxx</span></p>
+          </td>
+          <!-- Right: Logo -->
+          <td style="vertical-align: middle; text-align: right; padding-bottom: 10px; width: 240px;">
+            <div id="pdfLogoContainer" style="display: inline-block; max-height: 90px;"></div>
+          </td>
+        </tr>
+      </table>
+      
+      <!-- WATERMARK -->
+      <div id="pdfStatusWatermark" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-20deg); font-size: 55px; font-weight: 800; color: rgba(239, 68, 68, 0.18); border: 6px dashed rgba(239, 68, 68, 0.18); padding: 12px 24px; text-transform: uppercase; letter-spacing: 5px; pointer-events: none; z-index: 0; border-radius: 12px; white-space: nowrap;">BELUM LUNAS</div>
+
+      <!-- INVOICE INFO & DETAILS SECTION (Pure HTML Table) -->
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px;">
+        <tr>
+          <!-- Left: Invoice Metadata -->
+          <td style="width: 40%; vertical-align: top; text-align: left; padding-right: 15px;">
+            <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 18px; font-weight: 800; letter-spacing: 0.5px;">INVOICE</h3>
+            <table style="border-collapse: collapse; font-size: 12px; color: #475569;">
+              <tr>
+                <td style="padding: 2px 0; font-weight: 600; color: #0f172a; width: 100px;">Invoice No</td>
+                <td style="padding: 2px 5px; color: #0f172a;">: <strong id="pdfInvNumber"></strong></td>
+              </tr>
+              <tr>
+                <td style="padding: 2px 0; font-weight: 600; color: #0f172a;">Created Date</td>
+                <td style="padding: 2px 5px;">: <span id="pdfInvDate"></span></td>
+              </tr>
+            </table>
+          </td>
+          <!-- Right: Customer Info Box & Catering Box (Side-by-Side inside Cell) -->
+          <td style="width: 60%; vertical-align: top; padding-left: 15px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <!-- Customer Box -->
+                <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                  <div style="background: #f8fafc; border-left: 4px solid #d4af37; padding: 12px 15px; border-radius: 0 8px 8px 0; min-height: 95px; text-align: left; box-sizing: border-box;">
+                    <h4 style="margin: 0 0 6px 0; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; color: #64748b; font-weight: 700;">Customer Info:</h4>
+                    <p id="pdfCustName" style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700; color: #0f172a;"></p>
+                    <p id="pdfCustPhone" style="display: none !important;"></p>
+                  </div>
+                </td>
+                <!-- Catering Box -->
+                <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                  <div style="background: #f8fafc; border-left: 4px solid #0f172a; padding: 12px 15px; border-radius: 0 8px 8px 0; min-height: 95px; text-align: left; box-sizing: border-box;">
+                    <h4 style="margin: 0 0 6px 0; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; color: #64748b; font-weight: 700;">Catering Delivery:</h4>
+                    <p style="margin: 0 0 4px 0; font-size: 11.5px; color: #475569; font-weight: 600;">Date: <span id="pdfCatDate" style="color: #d4af37; font-weight: 700;"></span></p>
+                    <p style="margin: 0; font-size: 11px; color: #475569; font-weight: 500;">Location: <span id="pdfCatLocation" style="color: #0f172a; font-weight: 600;"></span></p>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- ITEMS TABLE -->
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background: #0f172a; color: #ffffff;">
+            <th style="padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 4px 0 0 4px;">Description</th>
+            <th style="padding: 10px 12px; text-align: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Price</th>
+            <th style="padding: 10px 12px; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Qty</th>
+            <th style="padding: 10px 12px; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Unit</th>
+            <th style="padding: 10px 12px; text-align: right; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-radius: 0 4px 4px 0;">Total</th>
+          </tr>
+        </thead>
+        <tbody id="pdfItemsTableBody" style="font-size: 12px;">
+          <!-- Item rows will be injected dynamically -->
+        </tbody>
+      </table>
+
+      <!-- SUMMARY, PAYMENT & VERIFICATION SECTION (Pure HTML Table Layout) -->
+      <table style="width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed;">
+        <tr>
+          <!-- Left: Notes & Payment Accounts -->
+          <td style="vertical-align: top; padding-right: 10px; width: 40%;">
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; color: #475569; font-size: 10.5px; line-height: 1.45; min-height: 200px; box-sizing: border-box; text-align: left; background: #ffffff;">
+              <!-- Notes Container -->
+              <div id="pdfNotesContainer" style="margin-bottom: 12px; display: none; text-align: left; background: #fffdf5; border: 1px solid #fef3c7; border-left: 4px solid #d4af37; padding: 8px 12px; border-radius: 6px;">
+                <h4 style="margin: 0 0 3px 0; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; color: #b45309; font-weight: 700;">Notes / Remarks:</h4>
+                <p id="pdfNotes" style="margin: 0; font-size: 9.5px; color: #78350f; white-space: pre-wrap; font-style: italic; line-height: 1.35;"></p>
+              </div>
+
+              <!-- Payment Accounts -->
+              <div id="pdfPaymentAccountsContainer">
+                <h4 style="margin: 0 0 5px 0; text-transform: uppercase; font-size: 9.5px; letter-spacing: 0.5px; color: #0f172a; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px;">Payment Account(s):</h4>
+                <p style="margin: 0 0 4px 0; font-size: 10px;">Please transfer your payment to:</p>
+                <div id="pdfPaymentAccountsList" style="margin: 0; padding: 0; font-size: 10px; line-height: 1.35;">
+                  <!-- Dinamis diisi lewat JS -->
+                </div>
+              </div>
+              
+              <p style="margin: 10px 0 0 0; font-size: 9px; color: #94a3b8; font-style: italic;">*Please send payment receipt after transfer.</p>
+            </div>
+          </td>
+
+          <!-- Center: QR Code Verification -->
+          <td style="vertical-align: top; padding-left: 5px; padding-right: 5px; width: 20%;">
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 6px; text-align: center; min-height: 200px; box-sizing: border-box; background: #ffffff;">
+              <span style="font-size: 8px; text-transform: uppercase; color: #10b981; font-weight: 700; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">ORIGINAL INVOICE</span>
+              <div id="pdfQrCode" style="width: 72px; height: 72px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 2px; background: #fff; box-sizing: border-box; display: inline-block;"></div>
+              <span style="font-size: 7.5px; color: #94a3b8; font-weight: 600; display: block; margin-top: 8px; line-height: 1.2;">Scan to Verify<br>Poetry's Catering</span>
+            </div>
+          </td>
+
+          <!-- Right: Summary Totals & History Table (Split to prevent overflow clipping) -->
+          <td style="vertical-align: top; padding-left: 10px; width: 40%;">
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; min-height: 200px; box-sizing: border-box; background: #ffffff; text-align: left;">
+              <!-- 1. Subtotal, Discount, Fee, Grand Total Table -->
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 4px;">
+                <!-- Subtotal Row -->
+                <tr>
+                  <td style="text-align: left; padding: 4px 0; font-size: 11.5px; color: #475569;">Subtotal</td>
+                  <td style="text-align: right; padding: 4px 0; font-size: 11.5px; color: #0f172a; font-weight: 700; white-space: nowrap;" id="pdfSubtotal">Rp 0</td>
+                </tr>
+                
+                <!-- Discount Row -->
+                <tr id="pdfDiscountRow" style="display: none;">
+                  <td style="text-align: left; padding: 4px 0; font-size: 11.5px; color: #ef4444;">Discount <span id="pdfDiscountInfo" style="font-size: 10px;"></span></td>
+                  <td style="text-align: right; padding: 4px 0; font-size: 11.5px; color: #ef4444; font-weight: 700; white-space: nowrap;" id="pdfDiscountAmount">- Rp 0</td>
+                </tr>
+                
+                <!-- Additional Fee Row -->
+                <tr id="pdfAdditionalFeeRow" style="display: none;">
+                  <td style="text-align: left; padding: 4px 0; font-size: 11.5px; color: #475569;">Additional Fee</td>
+                  <td style="text-align: right; padding: 4px 0; font-size: 11.5px; color: #0f172a; font-weight: 700; white-space: nowrap;" id="pdfAdditionalFeeAmount">Rp 0</td>
+                </tr>
+
+                <!-- Grand Total Row -->
+                <tr>
+                  <td style="text-align: left; padding: 6px 0; font-size: 11.5px; color: #0f172a; border-top: 1px dashed #cbd5e1; font-weight: 600;">Grand Total</td>
+                  <td style="text-align: right; padding: 6px 0; font-size: 11.5px; color: #0f172a; border-top: 1px dashed #cbd5e1; font-weight: 700; white-space: nowrap;" id="pdfGrandTotal">Rp 0</td>
+                </tr>
+              </table>
+              
+              <!-- 2. Dynamic Payment History Container (Rendered as independent table inside to prevent layout leakage) -->
+              <div id="pdfPaymentHistoryRows" style="border-top: 1px dashed #cbd5e1; padding-top: 4px; margin-top: 4px; margin-bottom: 4px; display: none;">
+                <!-- dynamic payment history table will be injected here -->
+              </div>
+
+              <!-- 3. Final Paid & Remaining Table -->
+              <table style="width: 100%; border-collapse: collapse; margin-top: 4px; border-top: 1px dashed #cbd5e1; padding-top: 4px;">
+                <!-- Total Paid Row -->
+                <tr>
+                  <td style="text-align: left; padding: 6px 0; font-size: 11.5px; color: #475569; font-weight: 600;">Total Paid</td>
+                  <td style="text-align: right; padding: 6px 0; font-size: 11.5px; color: #10b981; font-weight: 700; white-space: nowrap;" id="pdfPaidAmount">Rp 0</td>
+                </tr>
+                
+                <!-- Remaining Balance Row -->
+                <tr>
+                  <td style="text-align: left; padding: 6px 0; font-size: 12.5px; color: #0f172a; border-top: 2px solid #e2e8f0; font-weight: bold;">Remaining</td>
+                  <td style="text-align: right; padding: 6px 0; font-size: 13px; color: #ef4444; border-top: 2px solid #e2e8f0; font-weight: bold; white-space: nowrap;" id="pdfRemainingBalance">Rp 0</td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- FOOTER -->
+      <div style="margin-top: 45px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 15px; color: #94a3b8; font-size: 11px; font-weight: 500;">
+        <p style="margin: 0; text-transform: uppercase; letter-spacing: 1px;">Thank you for trusting Poetry's Catering</p>
+      </div>
+      
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF REPORT TEMPLATE MODAL -->
+  <div class="modal-backdrop hidden" id="pdfReportWrapper" style="z-index: 3000;">
+    <div class="modal glass" style="max-width: 850px; width: 95%; padding: 0;">
+      <div class="modal-header" style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="margin: 0;">Report Print Preview</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-success" onclick="app.confirmPrintReport()"><i data-lucide="download"></i> Download PDF</button>
+          <button class="btn-icon" onclick="app.closeModal('pdfReportWrapper')"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="modal-body" style="background: #e2e8f0; padding: 24px; max-height: 80vh; overflow-y: auto; display: flex; justify-content: center;">
+        
+        <div class="pdf-container" id="pdfReportContent" style="width: 210mm; min-height: 297mm; position: relative; padding: 30px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #1e293b; line-height: 1.5; box-shadow: 0 10px 25px rgba(0,0,0,0.2); border-radius: 12px; box-sizing: border-box;">
+          
+          <!-- HEADER with Business Info and Logo (HTML Table for absolute layout compatibility) -->
+          <table style="width: 100%; border-collapse: collapse; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px;">
+            <tr>
+              <td style="vertical-align: middle; text-align: left;">
+                <h2 style="margin: 0; color: #d4af37; font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 0.5px;">Poetry's Catering</h2>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: #64748b; font-weight: 500;">Premium Catering & Operational Management</p>
+                <p style="margin: 2px 0 0 0; font-size: 10px; color: #94a3b8;">Serang, Banten • WhatsApp: <span id="pdfReportCompanyPhone">+62 812-xxxx-xxxx</span></p>
+              </td>
+              <td style="vertical-align: middle; text-align: right; padding-bottom: 10px; width: 240px;">
+                <div id="pdfReportLogoContainer" style="display: inline-block; max-height: 90px;">
+                  <!-- Business logo image will be injected here -->
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- REPORT TITLE -->
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 1px;">Laporan Pendapatan & Kinerja Bisnis</h3>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b;">Periode: <strong id="pdfReportPeriod" style="color: #0f172a;"></strong> | Dicetak pada: <span id="pdfReportPrintDate" style="color: #334155;"></span></p>
+          </div>
+
+          <!-- KPI SUMMARY CARDS (HTML Table for absolute layout compatibility) -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <tr>
+              <td style="width: 25%; padding-right: 5px;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center; box-sizing: border-box;">
+                  <div style="font-size: 9px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Total Transaksi</div>
+                  <div id="pdfReportTotalInvoices" style="font-size: 14px; font-weight: 800; color: #0f172a;">0</div>
+                </div>
+              </td>
+              <td style="width: 25%; padding-left: 5px; padding-right: 5px;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; text-align: center; box-sizing: border-box;">
+                  <div style="font-size: 9px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Total Omset</div>
+                  <div id="pdfReportTotalAmount" style="font-size: 13px; font-weight: 800; color: #0f172a;">Rp 0</div>
+                </div>
+              </td>
+              <td style="width: 25%; padding-left: 5px; padding-right: 5px;">
+                <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 10px; text-align: center; box-sizing: border-box;">
+                  <div style="font-size: 9px; color: #059669; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Pendapatan Masuk</div>
+                  <div id="pdfReportTotalPaid" style="font-size: 13px; font-weight: 800; color: #047857;">Rp 0</div>
+                </div>
+              </td>
+              <td style="width: 25%; padding-left: 5px;">
+                <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 10px; text-align: center; box-sizing: border-box;">
+                  <div style="font-size: 9px; color: #dc2626; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Sisa Piutang</div>
+                  <div id="pdfReportTotalRemaining" style="font-size: 13px; font-weight: 800; color: #b91c1c;">Rp 0</div>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+
+          <!-- CHART VISUALIZATION (Pure HTML Block Layout) -->
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 20px; background: #ffffff; text-align: left; box-sizing: border-box;">
+            <div style="font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Tren Grafik Pendapatan</div>
+            <div id="pdfReportChartContainer" style="width: 100%; text-align: center; display: block;">
+              <!-- Chart image will be injected here -->
+            </div>
+          </div>
+
+          <!-- TABLES: SIDE-BY-SIDE (HTML Table for absolute layout compatibility) -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+            <tr>
+              <!-- Left Table: Summary -->
+              <td style="width: 55%; vertical-align: top; padding-right: 10px;">
+                <div style="overflow: hidden;">
+                  <h4 style="margin: 0 0 6px 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; color: #0f172a; text-transform: uppercase;">Rekapitulasi Bulanan</h4>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+                    <thead>
+                      <tr style="background: #f8fafc; border-bottom: 1.5px solid #cbd5e1; text-align: left; color: #d4af37; font-weight: 700;">
+                        <th style="padding: 6px 4px;">Bulan</th>
+                        <th style="padding: 6px 4px; text-align: center;">Invoice</th>
+                        <th style="padding: 6px 4px; text-align: right;">Total Omset</th>
+                        <th style="padding: 6px 4px; text-align: right;">Total Bayar</th>
+                        <th style="padding: 6px 4px; text-align: right;">Piutang</th>
+                      </tr>
+                    </thead>
+                    <tbody id="pdfReportTableBody">
+                      <!-- dynamic rows -->
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+              <!-- Right Table: Client Rating -->
+              <td style="width: 45%; vertical-align: top; padding-left: 10px;">
+                <div style="overflow: hidden;">
+                  <h4 style="margin: 0 0 6px 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-weight: 700; color: #0f172a; text-transform: uppercase;">Peringkat Vendor (Top 5)</h4>
+                  <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+                    <thead>
+                      <tr style="background: #f8fafc; border-bottom: 1.5px solid #cbd5e1; text-align: left; color: #d4af37; font-weight: 700;">
+                        <th style="padding: 6px 4px; text-align: center; width: 30px;">Rank</th>
+                        <th style="padding: 6px 4px;">Vendor</th>
+                        <th style="padding: 6px 4px; text-align: center;">Event</th>
+                        <th style="padding: 6px 4px; text-align: right;">Total Omset</th>
+                        <th style="padding: 6px 4px; text-align: right;">Piutang</th>
+                      </tr>
+                    </thead>
+                    <tbody id="pdfClientRatingTableBody">
+                      <!-- dynamic rows -->
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- SIGNATURES & FOOTER (HTML Table for absolute layout compatibility) -->
+          <table style="width: 100%; border-collapse: collapse; margin-top: auto; border-top: 1px dashed #cbd5e1; padding-top: 15px;">
+            <tr>
+              <td style="vertical-align: bottom; text-align: left; padding-top: 15px;">
+                <div style="font-size: 9px; color: #94a3b8;">
+                  <p style="margin: 0;">* Laporan ini dibuat secara otomatis oleh sistem katering.</p>
+                  <p style="margin: 2px 0 0 0;">ID Dokumen: <span id="pdfReportDocId" style="font-family: monospace;"></span></p>
+                </div>
+              </td>
+              <td style="width: 180px; vertical-align: bottom; text-align: center; padding-top: 15px;">
+                <div style="font-size: 10px; display: inline-block; text-align: center;">
+                  <p style="margin: 0 0 45px 0; color: #64748b;">Hormat Kami,</p>
+                  <strong style="color: #0f172a; border-top: 1px solid #475569; display: block; padding-top: 4px; width: 180px;">Management Poetry's Catering</strong>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <datalist id="citySuggestions">
+    <option value="Serang"></option>
+    <option value="Tangerang"></option>
+    <option value="Tangerang Selatan"></option>
+    <option value="Cilegon"></option>
+    <option value="Pandeglang"></option>
+    <option value="Rangkasbitung"></option>
+    <option value="Lebak"></option>
+  </datalist>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script defer src="logo_base64.js?v=20260719_v182"></script>
+  <script defer src="app.js?v=20260719_v182"></script>
+</body>
+</html>
