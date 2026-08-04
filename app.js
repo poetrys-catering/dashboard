@@ -22,7 +22,7 @@ const app = {
     currentUser: null,
     apiUrl: localStorage.getItem('apiUrl') || '',
     language: localStorage.getItem('appLanguage') || 'id',
-    dbType: localStorage.getItem('dbType') || 'sheets',
+    dbType: localStorage.getItem('dbType') || 'supabase',
     supabaseUrl: localStorage.getItem('supabaseUrl') || '',
     supabaseKey: localStorage.getItem('supabaseKey') || ''
   },
@@ -204,20 +204,25 @@ const app = {
   chartInstance: null,
   reportChartInstance: null,
 
-  async init() {
-    // Bootstrap: jika localStorage kosong (browser baru), muat config dari Google Sheets
-    const hasLocalConfig = localStorage.getItem('dbType');
-    if (!hasLocalConfig && this.DEFAULT_API_URL) {
-      try {
-        await this.loadRemoteDbConfig();
-      } catch (e) {
-        console.warn('Remote config bootstrap failed:', e.message);
-      }
-    }
+  getDefaultInvoiceDateRange() {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
 
-    // Initialize Supabase Client if configured
+    const prevMonthDate = new Date(y, m - 1, 1);
+    const prevY = prevMonthDate.getFullYear();
+    const prevM = String(prevMonthDate.getMonth() + 1).padStart(2, '0');
+    const firstDayStr = `${prevY}-${prevM}-01`;
+
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const currentM = String(m + 1).padStart(2, '0');
+    const lastDayStr = `${y}-${currentM}-${String(lastDay).padStart(2, '0')}`;
+
+    return { firstDayStr, lastDayStr };
+  },
+
+  initSupabaseClient() {
     if (this.data.dbType === 'supabase' && this.data.supabaseUrl && this.data.supabaseKey) {
-      // Sanitize URL to strip trailing /rest/v1 if present
       let url = this.data.supabaseUrl.trim();
       if (url.endsWith('/rest/v1')) {
         url = url.slice(0, -8);
@@ -235,31 +240,10 @@ const app = {
         console.error("Failed to initialize Supabase client:", err);
       }
     }
+  },
 
-    // Gunakan URL default jika belum ada URL yang disimpan di browser ini
-    if (!this.data.apiUrl && this.DEFAULT_API_URL && !this.DEFAULT_API_URL.includes('...')) {
-      this.data.apiUrl = this.DEFAULT_API_URL;
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const invoiceNum = urlParams.get('invoice') || urlParams.get('inv');
-    const shortCode  = urlParams.get('s');
-
-    if (shortCode) {
-      // Short link mode: fetch data from Google Sheets using short code
-      this.initTheme();
-      this.bindEvents();
-      this.loadShortLinkInvoice(shortCode);
-      return;
-    }
-
-    if (invoiceNum) {
-      this.initTheme();
-      this.bindEvents();
-      this.loadGuestInvoice(invoiceNum);
-      return;
-    }
-
+  async init() {
+    // 1. Render UI & Check Auth IMMEDIATELY (Zero delay for login form)
     this.adjustResponsiveZoom();
     this.initTheme();
     this.applyLogo();
@@ -278,13 +262,29 @@ const app = {
     this.initSessionTimeout();
     this.bindEvents();
 
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = today.getMonth();
-    const firstDayStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
-    const lastDay = new Date(y, m + 1, 0).getDate();
-    const lastDayStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    // 2. Initialize database client
+    this.initSupabaseClient();
 
+    // Gunakan URL default jika belum ada URL yang disimpan di browser ini
+    if (!this.data.apiUrl && this.DEFAULT_API_URL && !this.DEFAULT_API_URL.includes('...')) {
+      this.data.apiUrl = this.DEFAULT_API_URL;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const invoiceNum = urlParams.get('invoice') || urlParams.get('inv');
+    const shortCode  = urlParams.get('s');
+
+    if (shortCode) {
+      this.loadShortLinkInvoice(shortCode);
+      return;
+    }
+
+    if (invoiceNum) {
+      this.loadGuestInvoice(invoiceNum);
+      return;
+    }
+
+    const { firstDayStr, lastDayStr } = this.getDefaultInvoiceDateRange();
     this.invoiceState.filterDateFrom = firstDayStr;
     this.invoiceState.filterDateTo = lastDayStr;
     
@@ -301,6 +301,14 @@ const app = {
       
       // Silently fetch fresh data in background
       this.loadData(true);
+    }
+
+    // 3. Background bootstrap: jika localStorage kosong (browser baru), muat config di latar belakang
+    const hasLocalConfig = localStorage.getItem('dbType');
+    if (!hasLocalConfig && this.DEFAULT_API_URL) {
+      this.loadRemoteDbConfig().then(() => {
+        this.initSupabaseClient();
+      }).catch(e => console.warn('Remote config bootstrap failed:', e.message));
     }
   },
 
@@ -452,11 +460,11 @@ const app = {
       let optimalZoom = 1.0;
       
       if (width <= 1200) {
-        optimalZoom = 0.75;
-      } else if (width <= 1400) { // e.g. 1366x768 screen (comfortable 80% default workspace)
-        optimalZoom = 0.8;
-      } else if (width <= 1600) { // e.g. 1440x900 or 1536x864 screen
+        optimalZoom = 0.85;
+      } else if (width <= 1400) { // e.g. 1366x768 screen (comfortable 90% default workspace)
         optimalZoom = 0.9;
+      } else if (width <= 1600) { // e.g. 1440x900 or 1536x864 screen
+        optimalZoom = 0.95;
       } else { // e.g. 1920x1080 screen or higher
         optimalZoom = 1.0;
       }
@@ -464,7 +472,6 @@ const app = {
       document.body.style.zoom = optimalZoom;
       document.documentElement.style.setProperty('--app-zoom', optimalZoom);
     } else {
-      // Remove zoom on mobile viewports so native mobile responsive rules apply
       document.body.style.zoom = "";
       document.documentElement.style.setProperty('--app-zoom', '1.0');
     }
@@ -1274,8 +1281,17 @@ const app = {
       localStorage.removeItem('sessionToken');
       localStorage.removeItem('lastActivityTime');
       this.data.currentUser = null;
-      document.getElementById('pageLogin').classList.remove('hidden');
-      document.getElementById('appLayout').classList.add('hidden');
+
+      const preStyle = document.getElementById('prePaintLoginStyle');
+      if (preStyle) preStyle.remove();
+
+      const pageLogin = document.getElementById('pageLogin');
+      const appLayout = document.getElementById('appLayout');
+      if (pageLogin) {
+        pageLogin.classList.remove('hidden');
+        pageLogin.style.display = 'flex';
+      }
+      if (appLayout) appLayout.classList.add('hidden');
     }
   },
 
@@ -1413,6 +1429,14 @@ const app = {
       localStorage.removeItem('sessionToken');
       localStorage.removeItem('lastActivityTime');
       this.data.currentUser = null;
+
+      const preStyle = document.getElementById('prePaintLoginStyle');
+      if (preStyle) preStyle.remove();
+
+      if (window.location.hash) {
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+
       this.checkAuth();
       if (force) {
         this.showAlert("Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit. Silakan login kembali.", "warning");
@@ -1642,23 +1666,17 @@ const app = {
       if(page === 'dashboard') this.renderDashboard();
       if(page === 'menus') this.renderMenus();
       if(page === 'invoices') {
-        // Only set default current month dates if there are no existing filters in state
-        if (!this.invoiceState.filterDateFrom && !this.invoiceState.filterDateTo) {
-          const today = new Date();
-          const y = today.getFullYear();
-          const m = today.getMonth();
-          const firstDayStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
-          const lastDay = new Date(y, m + 1, 0).getDate();
-          const lastDayStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        const { firstDayStr, lastDayStr } = this.getDefaultInvoiceDateRange();
 
+        if (!this.invoiceState.filterDateFrom || this.invoiceState.filterDateFrom.includes('2026-06-20')) {
           this.invoiceState.filterDateFrom = firstDayStr;
+        }
+        if (!this.invoiceState.filterDateTo || this.invoiceState.filterDateTo.includes('2026-06-20')) {
           this.invoiceState.filterDateTo = lastDayStr;
         }
 
-        const fromInput = document.getElementById('invoiceFilterDateFrom');
-        const toInput = document.getElementById('invoiceFilterDateTo');
-        if (fromInput) fromInput.value = this.invoiceState.filterDateFrom;
-        if (toInput) toInput.value = this.invoiceState.filterDateTo;
+        this.setDateInputValue('invoiceFilterDateFrom', this.invoiceState.filterDateFrom);
+        this.setDateInputValue('invoiceFilterDateTo', this.invoiceState.filterDateTo);
 
         // Restore other filters
         const searchInput = document.getElementById('invoiceSearchText');
@@ -1767,10 +1785,17 @@ const app = {
 
         const { data: dbInvoices, error: invErr } = await this.supabase.from('invoices').select('*');
         if (invErr) throw new Error("Invoices: " + invErr.message);
-        this.data.invoices = (dbInvoices || []).map(inv => ({
-          ...inv,
-          items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || [])
-        }));
+        this.data.invoices = (dbInvoices || []).map(inv => {
+          const city = inv.cateringCity || inv.cateringcity || inv.CateringCity || '';
+          const cleanInv = {
+            ...inv,
+            cateringCity: city,
+            items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || [])
+          };
+          delete cleanInv.cateringcity;
+          delete cleanInv.CateringCity;
+          return cleanInv;
+        });
         localStorage.setItem('invoices', JSON.stringify(this.data.invoices));
 
         const { data: dbUsers, error: userErr } = await this.supabase.from('users').select('*');
@@ -1818,12 +1843,19 @@ const app = {
           localStorage.setItem('menus', JSON.stringify(this.data.menus));
           
           const invoices = json.data.Invoices || [];
-          // Parse invoice items JSON
-          this.data.invoices = invoices.map(inv => ({
-            ...inv,
-            vendor: inv.vendor || '',
-            items: typeof inv.items === 'string' ? JSON.parse(inv.items) : inv.items
-          }));
+          // Standardize invoice object properties
+          this.data.invoices = invoices.map(inv => {
+            const city = inv.cateringCity || inv.cateringcity || inv.CateringCity || '';
+            const cleanInv = {
+              ...inv,
+              cateringCity: city,
+              vendor: inv.vendor || '',
+              items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || [])
+            };
+            delete cleanInv.cateringcity;
+            delete cleanInv.CateringCity;
+            return cleanInv;
+          });
           localStorage.setItem('invoices', JSON.stringify(this.data.invoices));
           
           this.data.users = json.data.Users || [];
@@ -1918,6 +1950,12 @@ const app = {
           try { dbPayload.paymentHistory = JSON.parse(dbPayload.paymentHistory); } catch(err) {}
         }
         
+        if (target === 'invoices') {
+          dbPayload.cateringCity = dbPayload.cateringCity || dbPayload.cateringcity || dbPayload.CateringCity || '';
+          delete dbPayload.cateringcity;
+          delete dbPayload.CateringCity;
+        }
+        
         const { error } = await this.supabase
           .from(target)
           .insert(dbPayload);
@@ -1981,6 +2019,12 @@ const app = {
         }
         if (typeof dbPayload.paymentHistory === 'string') {
           try { dbPayload.paymentHistory = JSON.parse(dbPayload.paymentHistory); } catch(err) {}
+        }
+        
+        if (target === 'invoices') {
+          dbPayload.cateringCity = dbPayload.cateringCity || dbPayload.cateringcity || dbPayload.CateringCity || '';
+          delete dbPayload.cateringcity;
+          delete dbPayload.CateringCity;
         }
         
         const { error } = await this.supabase
@@ -2997,8 +3041,8 @@ const app = {
 
     this.invoiceState.searchQuery = searchInput ? searchInput.value.toLowerCase().trim() : '';
     this.invoiceState.filterStatus = statusInput ? statusInput.value : 'all';
-    this.invoiceState.filterDateFrom = dateFromInput ? dateFromInput.value : '';
-    this.invoiceState.filterDateTo = dateToInput ? dateToInput.value : '';
+    this.invoiceState.filterDateFrom = this.getLocalYMD(dateFromInput ? dateFromInput.value : '');
+    this.invoiceState.filterDateTo = this.getLocalYMD(dateToInput ? dateToInput.value : '');
     this.invoiceState.currentPage = 1;
     this.renderInvoices();
   },
@@ -3006,13 +3050,11 @@ const app = {
   clearInvoiceFilters() {
     const searchInput = document.getElementById('invoiceSearchText');
     const statusInput = document.getElementById('invoiceFilterStatus');
-    const dateFromInput = document.getElementById('invoiceFilterDateFrom');
-    const dateToInput = document.getElementById('invoiceFilterDateTo');
 
     if (searchInput) searchInput.value = '';
     if (statusInput) statusInput.value = 'all';
-    if (dateFromInput) dateFromInput.value = '';
-    if (dateToInput) dateToInput.value = '';
+    this.setDateInputValue('invoiceFilterDateFrom', '');
+    this.setDateInputValue('invoiceFilterDateTo', '');
 
     this.invoiceState.searchQuery = '';
     this.invoiceState.filterStatus = 'all';
@@ -4186,8 +4228,8 @@ const app = {
     document.getElementById('invCustomerName').value = '';
     document.getElementById('invVendor').value = '';
     document.getElementById('invCateringLocation').value = '';
-    document.getElementById('invCateringCity').value = 'Serang';
-    document.getElementById('invCateringDate').value = '';
+    document.getElementById('invCateringCity').value = '';
+    this.setDateInputValue('invCateringDate', '');
     document.getElementById('invPaidAmount').value = '0';
     document.getElementById('invAdditionalFee').value = '0';
     document.getElementById('invNotes').value = '';
@@ -4197,7 +4239,7 @@ const app = {
       discValInput.value = '0';
       discValInput.style.display = 'none';
     }
-    document.getElementById('invDateCreated').valueAsDate = new Date();
+    this.setDateInputValue('invDateCreated', new Date());
     
     const invNum = this.generateNextInvoiceNumber();
     document.getElementById('pdfInvNumber').textContent = invNum;
@@ -4241,12 +4283,12 @@ const app = {
     document.getElementById('editInvCustomerName').value = inv.customerName || '';
     document.getElementById('editInvVendor').value = inv.vendor || '';
     document.getElementById('editInvCateringLocation').value = inv.cateringLocation || '';
-    document.getElementById('editInvCateringCity').value = inv.cateringCity || inv.CateringCity || 'Serang';
+    document.getElementById('editInvCateringCity').value = inv.cateringCity || inv.CateringCity || '';
     document.getElementById('editInvPaidAmount').value = this.formatNumberToIndonesian(inv.paidAmount || 0);
     document.getElementById('editInvAdditionalFee').value = this.formatNumberToIndonesian(inv.additionalFee || 0);
     document.getElementById('editInvNotes').value = inv.notes || '';
     
-    document.getElementById('editInvCateringDate').value = inv.cateringDate ? this.getLocalYMD(inv.cateringDate) : '';
+    this.setDateInputValue('editInvCateringDate', inv.cateringDate);
     
     // Populate discount inputs in edit modal
     const discType = inv.discountType || 'none';
@@ -5575,8 +5617,7 @@ const app = {
     document.getElementById('scheduleModalTitle').textContent = 'Buat Jadwal Baru';
     
     // Default date to today
-    const dateInput = document.getElementById('scheduleDate');
-    if (dateInput) dateInput.value = this.getLocalYMD(new Date());
+    this.setDateInputValue('scheduleDate', new Date());
 
     // Reset time group
     const timeGrp = document.getElementById('scheduleTimeGroup');
@@ -5629,7 +5670,7 @@ const app = {
         dateVal = this.getLocalYMD(sch.date);
       }
     }
-    document.getElementById('scheduleDate').value = dateVal;
+    this.setDateInputValue('scheduleDate', dateVal);
     
     const timeGrp = document.getElementById('scheduleTimeGroup');
     const timeInput = document.getElementById('scheduleTime');
@@ -6153,8 +6194,8 @@ const app = {
     if (filterType === 'year') {
       this.reportState.selectedYear = parseInt(document.getElementById('reportYearSelect').value);
     } else {
-      this.reportState.startDate = document.getElementById('reportStartDate').value;
-      this.reportState.endDate = document.getElementById('reportEndDate').value;
+      this.reportState.startDate = this.getLocalYMD(document.getElementById('reportStartDate').value);
+      this.reportState.endDate = this.getLocalYMD(document.getElementById('reportEndDate').value);
       
       if (!this.reportState.startDate || !this.reportState.endDate) {
         this.showAlert("Harap tentukan tanggal mulai dan tanggal selesai.", "warning");
@@ -6181,11 +6222,8 @@ const app = {
     const yearSelect = document.getElementById('reportYearSelect');
     if (yearSelect) yearSelect.value = this.reportState.selectedYear;
     
-    const startInput = document.getElementById('reportStartDate');
-    if (startInput) startInput.value = '';
-    
-    const endInput = document.getElementById('reportEndDate');
-    if (endInput) endInput.value = '';
+    this.setDateInputValue('reportStartDate', '');
+    this.setDateInputValue('reportEndDate', '');
     
     this.toggleReportFilterInputs();
     this.renderReports();
@@ -6639,8 +6677,8 @@ const app = {
     const cityData = {};
 
     filteredInvoices.forEach(inv => {
-      let rawCity = (inv.cateringCity || inv.CateringCity || 'Serang').trim();
-      if (!rawCity) rawCity = 'Serang';
+      let rawCity = (inv.cateringCity || inv.CateringCity || '').trim();
+      if (!rawCity) rawCity = 'Lainnya';
       
       // Capitalize first letter of each word
       const formattedCity = rawCity.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -7469,9 +7507,39 @@ const app = {
     return isNaN(d.getTime()) ? null : d;
   },
 
+  setDateInputValue(elementOrId, dateVal) {
+    const el = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+    if (!el) return;
+
+    if (!dateVal) {
+      if (el._flatpickr) el._flatpickr.clear();
+      else el.value = '';
+      return;
+    }
+
+    const ymd = this.getLocalYMD(dateVal);
+
+    if (el._flatpickr) {
+      el._flatpickr.setDate(ymd, false, 'Y-m-d');
+    } else {
+      if (ymd && ymd.length === 10 && ymd.includes('-')) {
+        const parts = ymd.split('-');
+        if (parts[0].length === 4) {
+          el.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          return;
+        }
+      }
+      el.value = ymd;
+    }
+  },
+
   getLocalYMD(val) {
     if (!val) return '';
-    if (typeof val === 'string' && val.length === 10 && val.includes('-')) return val;
+    if (typeof val === 'string' && val.length === 10 && val.includes('-')) {
+      const parts = val.split('-');
+      if (parts[0].length === 4) return val; // YYYY-MM-DD
+      if (parts[2].length === 4) return `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY -> YYYY-MM-DD
+    }
     if (typeof val === 'string' && val.includes('T')) {
       return val.split('T')[0];
     }
@@ -7499,7 +7567,14 @@ const app = {
 
   formatDate(dateStr) {
     if (!dateStr) return '-';
-    const d = new Date(dateStr);
+    let cleanStr = dateStr;
+    if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+      const parts = dateStr.split('-');
+      if (parts[2].length === 4) {
+        cleanStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+    const d = new Date(cleanStr);
     if (isNaN(d.getTime())) return dateStr;
     try {
       return d.toLocaleDateString('id-ID', {
@@ -7879,7 +7954,7 @@ const app = {
             customerName: group.customerName,
             vendor: group.vendor,
             cateringLocation: group.cateringLocation,
-            cateringCity: "Serang",
+            cateringCity: group.location || "",
             cateringDate: group.cateringDate,
             items: JSON.stringify(group.items), // Stringify items to store inside sheets db cleanly
             totalAmount,
@@ -8486,26 +8561,51 @@ const app = {
       }
     });
 
-    // Auto show date picker on focus of date inputs (allows typing on subsequent clicks)
+    // Auto initialize Flatpickr overlay datepicker on focus/click
     document.addEventListener('focusin', (e) => {
-      if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'date') {
-        if (e.target.dataset.pickerOpened === 'true') return;
-        e.target.dataset.pickerOpened = 'true';
-        try {
-          if (typeof e.target.showPicker === 'function') {
-            e.target.showPicker();
-          }
-        } catch (err) {
-          console.warn("showPicker is not supported or failed:", err);
-        }
-        setTimeout(() => {
-          if (e.target) delete e.target.dataset.pickerOpened;
-        }, 500);
+      if (e.target && e.target.tagName === 'INPUT' && (e.target.type === 'date' || e.target.classList.contains('datepicker-input'))) {
+        this.initFlatpickrDatepickers();
       }
     });
 
+    setTimeout(() => this.initFlatpickrDatepickers(), 100);
+
     // Setup currency listeners
     this.setupCurrencyInputListeners();
+  },
+
+  initFlatpickrDatepickers() {
+    if (typeof flatpickr !== 'function') return;
+
+    const selector = 'input[type="date"], input.datepicker-input';
+    const inputs = document.querySelectorAll(selector);
+
+    inputs.forEach(input => {
+      if (input._flatpickr) return;
+
+      const initialVal = input.value;
+
+      if (input.type === 'date') {
+        input.type = 'text';
+        input.classList.add('datepicker-input');
+      }
+      input.placeholder = 'DD-MM-YYYY';
+
+      const fp = flatpickr(input, {
+        dateFormat: 'd-m-Y',
+        allowInput: true,
+        clickOpens: true,
+        onChange: (selectedDates, dateStr) => {
+          input.value = dateStr;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+
+      if (initialVal) {
+        fp.setDate(this.getLocalYMD(initialVal), false, 'Y-m-d');
+      }
+    });
   }
 };
 

@@ -369,6 +369,17 @@ body.light-theme .password-toggle-btn:hover {
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
 /* Login Page & Glassmorphic Card */
+@keyframes loginCardGlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -377,7 +388,7 @@ body.light-theme .password-toggle-btn:hover {
   background: radial-gradient(circle at 50% 30%, rgba(212, 175, 55, 0.12), transparent 50%),
               #0f1115;
   transition: background-color 0.3s ease;
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
 body.light-theme .login-page {
@@ -387,15 +398,16 @@ body.light-theme .login-page {
 
 .login-card {
   width: 100%;
-  max-width: 400px;
-  padding: 2rem 2rem;
-  background: rgba(26, 29, 36, 0.7) !important;
+  max-width: 440px;
+  padding: 2.25rem 2.25rem;
+  background: rgba(26, 29, 36, 0.75) !important;
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(212, 175, 55, 0.18) !important;
-  border-radius: 16px;
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5),
-              0 0 25px rgba(212, 175, 55, 0.04);
-  transition: all 0.3s ease;
+  border: 1px solid rgba(212, 175, 55, 0.2) !important;
+  border-radius: 18px;
+  box-shadow: 0 16px 48px 0 rgba(0, 0, 0, 0.6),
+              0 0 30px rgba(212, 175, 55, 0.05);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  animation: loginCardGlideIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 body.light-theme .login-card {
@@ -4065,4 +4077,98 @@ body.role-staff .dashboard-calendar-widget {
 #settingsTabs .nav-link:focus {
   outline: none;
   box-shadow: none;
+}
+
+/* Flatpickr Custom Theme Matching Poetry's Catering Gold Glassmorphism - Ultra Compact 245px */
+.flatpickr-calendar,
+body .flatpickr-calendar {
+  background: rgba(22, 25, 32, 0.98) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(212, 175, 55, 0.15) !important;
+  border-radius: 10px !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 4px 6px !important;
+  width: 245px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+body.light-theme .flatpickr-calendar {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(212, 175, 55, 0.4) !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15) !important;
+}
+.flatpickr-days, 
+.dayContainer, 
+.flatpickr-rContainer {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.dayContainer {
+  justify-content: space-around !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+.flatpickr-day {
+  max-width: 32px !important;
+  height: 26px !important;
+  line-height: 26px !important;
+  margin: 1px 0 !important;
+  font-size: 11px !important;
+  border-radius: 5px !important;
+  box-sizing: border-box !important;
+}
+.flatpickr-day.selected, 
+.flatpickr-day.startRange, 
+.flatpickr-day.endRange, 
+.flatpickr-day.selected:focus, 
+.flatpickr-day.selected:hover {
+  background: #d4af37 !important;
+  border-color: #d4af37 !important;
+  color: #0f1115 !important;
+  font-weight: 700 !important;
+  border-radius: 5px !important;
+}
+.flatpickr-day:hover {
+  background: rgba(212, 175, 55, 0.25) !important;
+  border-radius: 5px !important;
+}
+.flatpickr-months {
+  height: 28px !important;
+  align-items: center !important;
+}
+.flatpickr-months .flatpickr-month {
+  height: 28px !important;
+  background: transparent !important;
+  color: #d4af37 !important;
+  font-weight: 700 !important;
+}
+.flatpickr-current-month {
+  font-size: 12px !important;
+  padding: 1px 0 0 0 !important;
+  height: 26px !important;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 0 2px !important;
+}
+.flatpickr-current-month input.cur-year {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+.flatpickr-weekdays {
+  height: 20px !important;
+}
+.flatpickr-weekday {
+  color: #d4af37 !important;
+  font-weight: 600 !important;
+  font-size: 10px !important;
+  line-height: 20px !important;
+}
+.flatpickr-day.today {
+  border-color: #d4af37 !important;
 }
