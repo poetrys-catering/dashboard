@@ -8678,19 +8678,23 @@ const app = {
 
       const positionCalendar = (calEl, inputEl) => {
         const rect = inputEl.getBoundingClientRect();
-        const calH = calEl.offsetHeight || 260;
-        const calW = 245;
+        const calH = calEl.offsetHeight || 210;
+        const calW = 210;
 
-        // Cari filterbar wrapper — kalender tampil di atasnya agar tidak menutupi tabel
+        // Buka TEPAT di bawah filter bar wrapper agar semua input filter tetap terlihat
         const filterbarWrapper = inputEl.closest('.invoice-filterbar-wrapper');
-        const wrapperTop = filterbarWrapper 
-          ? filterbarWrapper.getBoundingClientRect().top 
-          : rect.top;
+        const wrapperRect = filterbarWrapper
+          ? filterbarWrapper.getBoundingClientRect()
+          : rect;
 
-        // Kalender selalu tampil di ATAS filter bar, minimal 4px di atas wrapper
-        const top = Math.max(8, wrapperTop - calH - 4);
+        let top = wrapperRect.bottom + 4;
 
-        // Pastikan tidak keluar dari sisi kanan layar
+        // Jika keluar dari bawah viewport, geser ke atas secukupnya
+        if (top + calH > window.innerHeight - 8) {
+          top = window.innerHeight - calH - 8;
+        }
+
+        // Sejajarkan kiri dengan input yang diklik
         let left = rect.left;
         if (left + calW > window.innerWidth) {
           left = window.innerWidth - calW - 8;

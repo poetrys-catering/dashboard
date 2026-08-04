@@ -4081,17 +4081,17 @@ body.role-staff .dashboard-calendar-widget {
   box-shadow: none;
 }
 
-/* Flatpickr Custom Theme Matching Poetry's Catering Gold Glassmorphism - Ultra Compact 245px */
+/* Flatpickr Custom Theme Matching Poetry's Catering Gold Glassmorphism - Mini 210px */
 .flatpickr-calendar,
 body .flatpickr-calendar {
   background: rgba(22, 25, 32, 0.98) !important;
   backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(212, 175, 55, 0.4) !important;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(212, 175, 55, 0.15) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 12px rgba(212, 175, 55, 0.15) !important;
   border-radius: 10px !important;
   font-family: 'Inter', sans-serif !important;
-  padding: 4px 6px !important;
-  width: 245px !important;
+  padding: 3px 5px !important;
+  width: 210px !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
   z-index: 99999 !important;
@@ -4143,12 +4143,13 @@ body.light-theme .flatpickr-next-month {
   width: 100% !important;
 }
 .flatpickr-day {
-  max-width: 32px !important;
-  height: 26px !important;
-  line-height: 26px !important;
+  max-width: 26px !important;
+  width: 26px !important;
+  height: 20px !important;
+  line-height: 20px !important;
   margin: 1px 0 !important;
-  font-size: 11px !important;
-  border-radius: 5px !important;
+  font-size: 10px !important;
+  border-radius: 4px !important;
   box-sizing: border-box !important;
   color: #e2e8f0 !important;
 }
@@ -4168,37 +4169,38 @@ body.light-theme .flatpickr-next-month {
   border-radius: 5px !important;
 }
 .flatpickr-months {
-  height: 28px !important;
+  height: 22px !important;
   align-items: center !important;
 }
 .flatpickr-months .flatpickr-month {
-  height: 28px !important;
+  height: 22px !important;
   background: transparent !important;
   color: #d4af37 !important;
   font-weight: 700 !important;
 }
 .flatpickr-current-month {
-  font-size: 12px !important;
-  padding: 1px 0 0 0 !important;
-  height: 26px !important;
+  font-size: 11px !important;
+  padding: 0 !important;
+  height: 22px !important;
+  line-height: 22px !important;
 }
 .flatpickr-current-month .flatpickr-monthDropdown-months {
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
-  padding: 0 2px !important;
+  padding: 0 1px !important;
 }
 .flatpickr-current-month input.cur-year {
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 700 !important;
 }
 .flatpickr-weekdays {
-  height: 20px !important;
+  height: 16px !important;
 }
 .flatpickr-weekday {
   color: #d4af37 !important;
   font-weight: 600 !important;
-  font-size: 10px !important;
-  line-height: 20px !important;
+  font-size: 9px !important;
+  line-height: 16px !important;
 }
 .flatpickr-day.today {
   border-color: #d4af37 !important;
