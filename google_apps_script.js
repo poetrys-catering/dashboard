@@ -137,7 +137,11 @@ function syncToCalendar(sheetName, payload, oldEventId) {
     } else {
       const parts = dateStr.split('-');
       if (parts.length === 3) {
-        eventDate = new Date(parts[0], parseInt(parts[1])-1, parts[2]);
+        if (parts[0].length === 4) {
+          eventDate = new Date(parts[0], parseInt(parts[1])-1, parts[2]); // YYYY-MM-DD
+        } else if (parts[2].length === 4) {
+          eventDate = new Date(parts[2], parseInt(parts[1])-1, parts[0]); // DD-MM-YYYY
+        }
       }
     }
     if (!eventDate || isNaN(eventDate.getTime())) return oldEventId;
