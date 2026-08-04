@@ -60,9 +60,42 @@ function doGet(e) {
   return handleResponse(e);
 }
 
+function getTargetCalendar() {
+  const SCRIPT_PROP = PropertiesService.getScriptProperties();
+  let calId = SCRIPT_PROP.getProperty("CALENDAR_ID");
+  let calendar;
+  
+  if (calId) {
+    try {
+      calendar = CalendarApp.getCalendarById(calId);
+    } catch(e) {
+      calendar = null;
+    }
+  }
+  
+  if (!calendar) {
+    const cals = CalendarApp.getCalendarsByName("Poetry's Catering");
+    if (cals.length > 0) {
+      calendar = cals[0];
+      calId = calendar.getId();
+      SCRIPT_PROP.setProperty("CALENDAR_ID", calId);
+    } else {
+      calendar = CalendarApp.createCalendar("Poetry's Catering");
+      calId = calendar.getId();
+      SCRIPT_PROP.setProperty("CALENDAR_ID", calId);
+    }
+  }
+  
+  return {
+    calendar: calendar,
+    id: calId
+  };
+}
+
 function syncToCalendar(sheetName, payload, oldEventId) {
   try {
-    const calendar = CalendarApp.getDefaultCalendar();
+    const calInfo = getTargetCalendar();
+    const calendar = calInfo.calendar;
     let title = "";
     let dateStr = "";
     let desc = "";
@@ -133,7 +166,8 @@ function syncToCalendar(sheetName, payload, oldEventId) {
 function deleteCalendarEvent(eventId) {
   if (!eventId) return;
   try {
-    const calendar = CalendarApp.getDefaultCalendar();
+    const calInfo = getTargetCalendar();
+    const calendar = calInfo.calendar;
     const event = calendar.getEventById(eventId);
     if (event) event.deleteEvent();
   } catch(e) {}
@@ -141,7 +175,8 @@ function deleteCalendarEvent(eventId) {
 
 function getCalendarShares() {
   try {
-    const aclList = Calendar.Acl.list("primary");
+    const calInfo = getTargetCalendar();
+    const aclList = Calendar.Acl.list(calInfo.id);
     if (aclList && aclList.items) {
       const shares = aclList.items.filter(function(item) {
         return item.role !== 'owner' && item.scope && item.scope.type === 'user';
@@ -162,6 +197,7 @@ function getCalendarShares() {
 
 function shareCalendar(email, role) {
   try {
+    const calInfo = getTargetCalendar();
     const resource = {
       role: role || "writer",
       scope: {
@@ -169,7 +205,7 @@ function shareCalendar(email, role) {
         value: email
       }
     };
-    return Calendar.Acl.insert(resource, "primary");
+    return Calendar.Acl.insert(resource, calInfo.id);
   } catch (e) {
     throw new Error("Gagal membagikan kalender. Pastikan email benar dan 'Google Calendar API' sudah ditambahkan di panel kiri (Services).");
   }
@@ -177,7 +213,8 @@ function shareCalendar(email, role) {
 
 function unshareCalendar(ruleId) {
   try {
-    Calendar.Acl.remove("primary", ruleId);
+    const calInfo = getTargetCalendar();
+    Calendar.Acl.remove(calInfo.id, ruleId);
     return { status: "success" };
   } catch (e) {
     throw new Error("Gagal menghapus sharing kalender. Pastikan 'Google Calendar API' sudah ditambahkan di panel kiri (Services).");
