@@ -1,6 +1,11 @@
 # Folder Rahasia / Private (Backup & DB Patch Scripts)
 _private_database_and_backups/
 
+# Konfigurasi Supabase Lokal (JANGAN DI-COMMIT!)
+# File ini berisi credentials dan hanya untuk development lokal.
+# Untuk GitHub Pages, config.js di-generate otomatis oleh GitHub Actions.
+config.js
+
 # Backup & Temporary files
 *.bak
 *.backup.*

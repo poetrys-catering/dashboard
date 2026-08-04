@@ -36,7 +36,7 @@
   <!-- Flatpickr Datepicker CSS & Dark Theme -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
-  <link rel="stylesheet" href="style.css?v=20260804_v215">
+  <link rel="stylesheet" href="style.css?v=20260804_v232">
   
   <!-- Nav Active Override — inline to prevent cache issues -->
   <style>
@@ -186,8 +186,68 @@
       if (localStorage.getItem('currentUser') && localStorage.getItem('sessionToken')) {
         document.write('<style id="prePaintLoginStyle">#pageLogin{display:none !important}</style>');
       }
+      // Hide setup page if Supabase already configured
+      if (localStorage.getItem('supabaseUrl') && localStorage.getItem('supabaseKey')) {
+        document.write('<style id="preHideSetup">#pageSupabaseSetup{display:none !important}</style>');
+      } else {
+        // Hide login page until setup is done
+        document.write('<style id="preHideLogin">#pageLogin{display:none !important}</style>');
+      }
     } catch(e) {}
   </script>
+
+  <!-- SUPABASE SETUP PAGE (First-time configuration) -->
+  <div id="pageSupabaseSetup" class="page login-page">
+    <div class="login-card glass" style="max-width: 480px;">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, var(--color-primary), var(--color-accent)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+          <i data-lucide="database" style="color: #000; width: 28px; height: 28px;"></i>
+        </div>
+        <h1 class="brand-title" style="font-size: 1.6rem;">Poetry's Catering</h1>
+        <p class="subtitle" style="margin-top: 0.5rem;">Konfigurasi Database Pertama Kali</p>
+      </div>
+
+      <div style="background: rgba(255,200,0,0.08); border: 1px solid rgba(255,200,0,0.3); border-radius: 10px; padding: 12px 16px; margin-bottom: 1.5rem;">
+        <p style="margin: 0; font-size: 0.8rem; color: var(--color-text-muted); line-height: 1.5;">
+          <i data-lucide="info" style="width: 13px; height: 13px; display: inline; vertical-align: middle; color: var(--color-primary);"></i>
+          Masukkan URL dan API Key Supabase Anda. Data ini hanya tersimpan di browser lokal dan tidak dikirim ke mana pun.
+        </p>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label style="display: block; font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 6px; font-weight: 600;">Supabase Project URL</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="background: rgba(255,255,255,0.05); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
+            <i data-lucide="link" style="color: var(--color-accent); width: 18px; height: 18px;"></i>
+          </div>
+          <input type="url" id="setupSupabaseUrl" placeholder="https://xxxx.supabase.co"
+            style="flex: 1; margin: 0; height: 42px; padding: 0 1rem; border-radius: 8px; font-size: 0.85rem;">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.75rem;">
+        <label style="display: block; font-size: 0.8rem; color: var(--color-text-muted); margin-bottom: 6px; font-weight: 600;">Supabase Anon Key</label>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="background: rgba(255,255,255,0.05); width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--color-border); flex-shrink: 0;">
+            <i data-lucide="key" style="color: var(--color-accent); width: 18px; height: 18px;"></i>
+          </div>
+          <input type="password" id="setupSupabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            style="flex: 1; margin: 0; height: 42px; padding: 0 1rem; border-radius: 8px; font-size: 0.85rem;">
+        </div>
+      </div>
+
+      <div id="setupError" class="error-text hidden" style="margin-bottom: 1rem;"></div>
+
+      <button id="btnSaveSetup" onclick="app.saveSupabaseSetup()" class="btn btn-primary btn-block" style="height: 46px; border-radius: 8px; font-weight: 600;">
+        <i data-lucide="save" style="width: 16px; height: 16px;"></i>
+        Simpan & Lanjutkan
+      </button>
+
+      <div class="login-footer" style="margin-top: 1.25rem;">
+        <p>URL dan Key dapat ditemukan di Supabase Dashboard → Project Settings → API.</p>
+      </div>
+    </div>
+  </div>
 
   <!-- LOGIN PAGE (Visible by default for instant 0ms DOM paint) -->
   <div id="pageLogin" class="page login-page">
@@ -2245,6 +2305,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script defer src="logo_base64.js?v=20260804_v210"></script>
-  <script defer src="app.js?v=20260804_v231"></script>
+  <script defer src="config.js?v=20260804_v232"></script>
+  <script defer src="app.js?v=20260804_v232"></script>
 </body>
 </html>

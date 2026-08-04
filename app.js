@@ -22,9 +22,9 @@ const app = {
     currentUser: null,
     apiUrl: localStorage.getItem('apiUrl') || '',
     language: localStorage.getItem('appLanguage') || 'id',
-    dbType: localStorage.getItem('dbType') || 'supabase',
-    supabaseUrl: localStorage.getItem('supabaseUrl') || '',
-    supabaseKey: localStorage.getItem('supabaseKey') || ''
+    dbType: (window.APP_CONFIG?.dbType) || localStorage.getItem('dbType') || 'supabase',
+    supabaseUrl: (window.APP_CONFIG?.supabaseUrl) || localStorage.getItem('supabaseUrl') || '',
+    supabaseKey: (window.APP_CONFIG?.supabaseKey) || localStorage.getItem('supabaseKey') || ''
   },
   supabase: null,
 
@@ -243,6 +243,20 @@ const app = {
   },
 
   async init() {
+    // 0. If APP_CONFIG provided (GitHub Actions), sync to localStorage so setup page is skipped
+    if (window.APP_CONFIG?.supabaseUrl && window.APP_CONFIG?.supabaseKey) {
+      localStorage.setItem('supabaseUrl', window.APP_CONFIG.supabaseUrl);
+      localStorage.setItem('supabaseKey', window.APP_CONFIG.supabaseKey);
+      localStorage.setItem('dbType', window.APP_CONFIG.dbType || 'supabase');
+      // Hide setup page, ensure login page is visible
+      const setupPage = document.getElementById('pageSupabaseSetup');
+      const loginPage = document.getElementById('pageLogin');
+      const preHideLogin = document.getElementById('preHideLogin');
+      if (setupPage) setupPage.style.display = 'none';
+      if (preHideLogin) preHideLogin.remove();
+      // Login page visibility handled by checkAuth() below
+    }
+
     // 1. Render UI & Check Auth IMMEDIATELY (Zero delay for login form)
     this.adjustResponsiveZoom();
     this.initTheme();
@@ -1450,6 +1464,77 @@ const app = {
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  async saveSupabaseSetup() {
+    const urlInput = document.getElementById('setupSupabaseUrl');
+    const keyInput = document.getElementById('setupSupabaseKey');
+    const errorEl = document.getElementById('setupError');
+    const btn = document.getElementById('btnSaveSetup');
+
+    let url = (urlInput?.value || '').trim();
+    const key = (keyInput?.value || '').trim();
+
+    // Clear previous error
+    if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
+
+    // Validate
+    if (!url || !key) {
+      if (errorEl) { errorEl.textContent = 'URL dan API Key tidak boleh kosong.'; errorEl.classList.remove('hidden'); }
+      return;
+    }
+
+    // Normalize URL - strip trailing /rest/v1 if user pastes full URL
+    if (url.endsWith('/rest/v1')) url = url.slice(0, -8);
+    else if (url.endsWith('/rest/v1/')) url = url.slice(0, -9);
+    if (!url.startsWith('http')) {
+      if (errorEl) { errorEl.textContent = 'URL tidak valid. Harus dimulai dengan https://'; errorEl.classList.remove('hidden'); }
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    if (btn) btn.textContent = 'Menguji koneksi...';
+
+    try {
+      // Test connection
+      const testClient = window.supabase.createClient(url, key);
+      const { error: testErr } = await testClient.from('users').select('id').limit(1);
+      if (testErr && testErr.code !== 'PGRST116') {
+        // PGRST116 = no rows, that's fine. Other errors = real problem.
+        throw new Error('Koneksi gagal: ' + testErr.message);
+      }
+
+      // Save to localStorage
+      localStorage.setItem('supabaseUrl', url);
+      localStorage.setItem('supabaseKey', key);
+      localStorage.setItem('dbType', 'supabase');
+
+      // Update app data
+      this.data.supabaseUrl = url;
+      this.data.supabaseKey = key;
+      this.data.dbType = 'supabase';
+      this.supabase = testClient;
+
+      // Remove the style tags hiding the login page
+      const preHideLogin = document.getElementById('preHideLogin');
+      if (preHideLogin) preHideLogin.remove();
+
+      // Transition: hide setup page, show login page
+      const setupPage = document.getElementById('pageSupabaseSetup');
+      const loginPage = document.getElementById('pageLogin');
+      if (setupPage) setupPage.style.display = 'none';
+      if (loginPage) loginPage.style.display = 'flex';
+
+      this.showAlert('Konfigurasi Supabase berhasil disimpan! Silakan login.', 'success');
+    } catch (err) {
+      if (errorEl) { errorEl.textContent = err.message || 'Gagal menghubungkan ke Supabase.'; errorEl.classList.remove('hidden'); }
+    } finally {
+      if (btn) btn.disabled = false;
+      if (btn) {
+        btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i> Simpan & Lanjutkan';
+        if (window.lucide) lucide.createIcons();
+      }
+    }
   },
 
   async login(username, password) {
