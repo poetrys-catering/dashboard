@@ -517,7 +517,7 @@ body.light-theme .login-card .form-group input:focus {
 .app-layout {
   display: flex;
   min-height: 100vh;
-  zoom: 0.85;
+  zoom: 0.80;
 }
 
 /* Sidebar */
