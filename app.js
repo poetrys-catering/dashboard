@@ -8678,16 +8678,26 @@ const app = {
 
       const positionCalendar = (calEl, inputEl) => {
         const rect = inputEl.getBoundingClientRect();
-        const calH = calEl.offsetHeight || 280;
-        const spaceBelow = window.innerHeight - rect.bottom;
-        let top = rect.bottom + 4;
-        if (spaceBelow < calH + 8 && rect.top > calH + 8) {
-          top = rect.top - calH - 4; // buka ke atas jika tidak cukup ruang
+        const calH = calEl.offsetHeight || 260;
+        const calW = 245;
+
+        // Selalu coba buka ke ATAS agar tidak menutupi tabel di bawah
+        let top;
+        if (rect.top >= calH + 8) {
+          // Ada ruang di atas — buka ke atas
+          top = rect.top - calH - 4;
+        } else {
+          // Tidak cukup ruang di atas — terpaksa buka ke bawah
+          top = rect.bottom + 4;
         }
+
+        // Pastikan kalender tidak keluar dari sisi kanan layar
         let left = rect.left;
-        if (left + 245 > window.innerWidth) {
-          left = window.innerWidth - 250;
+        if (left + calW > window.innerWidth) {
+          left = window.innerWidth - calW - 8;
         }
+        if (left < 8) left = 8;
+
         calEl.style.top = top + 'px';
         calEl.style.left = left + 'px';
       };
