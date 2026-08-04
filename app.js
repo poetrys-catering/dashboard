@@ -8680,6 +8680,8 @@ const app = {
         dateFormat: 'd-m-Y',
         allowInput: true,
         clickOpens: true,
+        appendTo: document.body,
+        static: false,
         onChange: (selectedDates, dateStr) => {
           input.value = dateStr;
           input.dispatchEvent(new Event('input', { bubbles: true }));

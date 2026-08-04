@@ -2115,9 +2115,10 @@ body.light-theme .menu-checked-row {
   background: rgba(255, 255, 255, 0.04);
   border: 1.5px solid var(--color-primary);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 10px;
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  position: relative;
 }
 .invoice-filterbar-wrapper:focus-within {
   box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.18);
@@ -4092,6 +4093,8 @@ body .flatpickr-calendar {
   width: 245px !important;
   box-sizing: border-box !important;
   overflow: hidden !important;
+  z-index: 99999 !important;
+  position: absolute !important;
 }
 body.light-theme .flatpickr-calendar {
   background: rgba(255, 255, 255, 0.98) !important;
