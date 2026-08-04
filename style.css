@@ -4051,3 +4051,18 @@ body.role-staff .dashboard-row-2 {
 body.role-staff .dashboard-calendar-widget {
   max-width: 100% !important;
 }
+
+/* Settings navigation tabs style overrides */
+#settingsTabs .nav-link {
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+#settingsTabs .nav-link:focus {
+  outline: none;
+  box-shadow: none;
+}

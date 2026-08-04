@@ -20,9 +20,13 @@ const app = {
     users: [],
     schedules: [],
     currentUser: null,
-    apiUrl: localStorage.getItem('apiUrl') || '', // Akan diinisialisasi di init() jika kosong
-    language: localStorage.getItem('appLanguage') || 'id'
+    apiUrl: localStorage.getItem('apiUrl') || '',
+    language: localStorage.getItem('appLanguage') || 'id',
+    dbType: localStorage.getItem('dbType') || 'sheets',
+    supabaseUrl: localStorage.getItem('supabaseUrl') || '',
+    supabaseKey: localStorage.getItem('supabaseKey') || ''
   },
+  supabase: null,
 
   escapeHTML(str) {
     if (str === null || str === undefined) return '';
@@ -200,7 +204,38 @@ const app = {
   chartInstance: null,
   reportChartInstance: null,
 
-  init() {
+  async init() {
+    // Bootstrap: jika localStorage kosong (browser baru), muat config dari Google Sheets
+    const hasLocalConfig = localStorage.getItem('dbType');
+    if (!hasLocalConfig && this.DEFAULT_API_URL) {
+      try {
+        await this.loadRemoteDbConfig();
+      } catch (e) {
+        console.warn('Remote config bootstrap failed:', e.message);
+      }
+    }
+
+    // Initialize Supabase Client if configured
+    if (this.data.dbType === 'supabase' && this.data.supabaseUrl && this.data.supabaseKey) {
+      // Sanitize URL to strip trailing /rest/v1 if present
+      let url = this.data.supabaseUrl.trim();
+      if (url.endsWith('/rest/v1')) {
+        url = url.slice(0, -8);
+        this.data.supabaseUrl = url;
+        localStorage.setItem('supabaseUrl', url);
+      } else if (url.endsWith('/rest/v1/')) {
+        url = url.slice(0, -9);
+        this.data.supabaseUrl = url;
+        localStorage.setItem('supabaseUrl', url);
+      }
+
+      try {
+        this.supabase = window.supabase.createClient(this.data.supabaseUrl, this.data.supabaseKey);
+      } catch (err) {
+        console.error("Failed to initialize Supabase client:", err);
+      }
+    }
+
     // Gunakan URL default jika belum ada URL yang disimpan di browser ini
     if (!this.data.apiUrl && this.DEFAULT_API_URL && !this.DEFAULT_API_URL.includes('...')) {
       this.data.apiUrl = this.DEFAULT_API_URL;
@@ -607,7 +642,7 @@ const app = {
     return url;
   },
 
-  saveLogoUrl() {
+  async saveLogoUrl() {
     const urlInput = document.getElementById('settingLogoUrl');
     if (!urlInput) return;
     const url = urlInput.value.trim();
@@ -615,14 +650,197 @@ const app = {
       this.showAlert("Harap masukkan URL logo yang valid.", "warning");
       return;
     }
-    localStorage.setItem('businessLogo', url);
+    await this.saveAppSettings({ businessLogo: url });
     this.applyLogo();
     this.showAlert("URL Logo berhasil disimpan!", "success");
+  },
+
+  // ===== Central Database Configuration =====
+  // Simpan konfigurasi database ke Google Sheets (DEFAULT_API_URL) agar berlaku di semua browser
+  async saveDbConfig() {
+    const apiUrl = this.DEFAULT_API_URL || this.data.apiUrl;
+    if (!apiUrl) return;
+    try {
+      await this.fetchJSON(`${apiUrl}?action=SAVE_APP_SETTINGS`, {
+        method: 'POST',
+        credentials: 'omit',
+        body: JSON.stringify({
+          settings: {
+            _dbType: this.data.dbType,
+            _supabaseUrl: this.data.supabaseUrl,
+            _supabaseKey: this.data.supabaseKey,
+            _apiUrl: this.data.apiUrl
+          },
+          token: localStorage.getItem('sessionToken') || ''
+        })
+      });
+      console.log('DB config saved to Google Sheets successfully');
+    } catch (e) {
+      console.warn('saveDbConfig to Sheets failed (non-critical):', e.message);
+    }
+  },
+
+  // Muat konfigurasi database dari Google Sheets saat browser baru (localStorage kosong)
+  async loadRemoteDbConfig() {
+    const apiUrl = this.DEFAULT_API_URL;
+    if (!apiUrl) return false;
+    try {
+      const json = await this.fetchJSON(
+        `${apiUrl}?action=GET_APP_SETTINGS&token=`,
+        { credentials: 'omit' }
+      );
+      if (json.status === 'success' && json.data) {
+        const d = json.data;
+        if (d._dbType) {
+          this.data.dbType = d._dbType;
+          localStorage.setItem('dbType', d._dbType);
+        }
+        if (d._supabaseUrl) {
+          this.data.supabaseUrl = d._supabaseUrl;
+          localStorage.setItem('supabaseUrl', d._supabaseUrl);
+        }
+        if (d._supabaseKey) {
+          this.data.supabaseKey = d._supabaseKey;
+          localStorage.setItem('supabaseKey', d._supabaseKey);
+        }
+        if (d._apiUrl) {
+          this.data.apiUrl = d._apiUrl;
+          localStorage.setItem('apiUrl', d._apiUrl);
+        }
+        console.log('DB config loaded from Google Sheets:', d._dbType || 'sheets');
+        return true;
+      }
+    } catch (e) {
+      console.warn('loadRemoteDbConfig failed (non-critical):', e.message);
+    }
+    return false;
+  },
+
+  // ===== Persistent App Settings (paymentAccounts, companyPhone, businessLogo) =====
+  async loadAppSettings() {
+    if (this.data.dbType === 'supabase' && this.supabase) {
+      try {
+        const { data, error } = await this.supabase
+          .from('app_settings')
+          .select('key, value');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          data.forEach(row => {
+            localStorage.setItem(row.key, row.value);
+          });
+        }
+      } catch (e) {
+        console.warn('loadAppSettings from Supabase failed, using localStorage:', e.message);
+      }
+    } else if (this.data.apiUrl) {
+      try {
+        const json = await this.fetchJSON(
+          `${this.data.apiUrl}?action=GET_APP_SETTINGS&token=${localStorage.getItem('sessionToken') || ''}`,
+          { credentials: 'omit' }
+        );
+        if (json.status === 'success' && json.data) {
+          Object.entries(json.data).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) localStorage.setItem(k, v);
+          });
+        }
+      } catch (e) {
+        console.warn('loadAppSettings from Sheets failed, using localStorage:', e.message);
+      }
+    }
+    // Apply loaded values to UI
+    this.applyAppSettings();
+  },
+
+  applyAppSettings() {
+    // Apply logo
+    this.applyLogo();
+    // Reflect on settings page if open
+    const paymentEl = document.getElementById('settingPaymentAccounts');
+    if (paymentEl) paymentEl.value = localStorage.getItem('paymentAccounts') || '';
+    const phoneEl = document.getElementById('settingCompanyPhone');
+    if (phoneEl) phoneEl.value = localStorage.getItem('companyPhone') || '';
+    const logoUrlEl = document.getElementById('settingLogoUrl');
+    if (logoUrlEl) {
+      const logoData = localStorage.getItem('businessLogo') || '';
+      logoUrlEl.value = logoData.startsWith('http') ? logoData : '';
+    }
+  },
+
+  async saveAppSettings(settingsMap) {
+    // Always save to localStorage first
+    Object.entries(settingsMap).forEach(([k, v]) => {
+      localStorage.setItem(k, v);
+    });
+
+    if (this.data.dbType === 'supabase' && this.supabase) {
+      try {
+        const rows = Object.entries(settingsMap).map(([key, value]) => ({
+          key,
+          value,
+          updated_at: new Date().toISOString()
+        }));
+        const { error } = await this.supabase
+          .from('app_settings')
+          .upsert(rows, { onConflict: 'key' });
+        if (error) throw error;
+      } catch (e) {
+        console.warn('saveAppSettings to Supabase failed:', e.message);
+      }
+    } else if (this.data.apiUrl) {
+      try {
+        await this.fetchJSON(
+          `${this.data.apiUrl}?action=SAVE_APP_SETTINGS`,
+          {
+            method: 'POST',
+            credentials: 'omit',
+            body: JSON.stringify({ settings: settingsMap, token: localStorage.getItem('sessionToken') || '' })
+          }
+        );
+      } catch (e) {
+        console.warn('saveAppSettings to Sheets failed:', e.message);
+      }
+    }
   },
 
   async loadCalendarShares() {
     const listContainer = document.getElementById('calendarShareList');
     if (!listContainer) return;
+
+    if (this.data.dbType === 'supabase') {
+      try {
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi.");
+        const { data, error } = await this.supabase.from('calendar_shares').select('*');
+        if (error) throw error;
+        
+        if (!data || data.length === 0) {
+          listContainer.innerHTML = `<div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">Belum ada email Google lain yang ditambahkan.</div>`;
+        } else {
+          let html = '<table class="table table-sm table-borderless" style="margin:0; font-size:12px; color:var(--color-text);">';
+          data.forEach(share => {
+            html += `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 6px 4px; vertical-align: middle;">
+                  <i data-lucide="user" style="width: 14px; height: 14px; margin-right: 6px; vertical-align: middle; color: var(--color-primary);"></i>
+                  ${this.escapeHTML(share.email)}
+                </td>
+                <td style="padding: 6px 4px; text-align: right; vertical-align: middle;">
+                  <button class="btn btn-danger btn-xs" onclick="app.removeCalendarShare('${share.id}')" style="padding: 2px 6px; font-size: 10px; height: 22px;">
+                    <i data-lucide="trash-2" style="width: 11px; height: 11px; vertical-align: middle;"></i> Hapus
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+          html += '</table>';
+          listContainer.innerHTML = html;
+          lucide.createIcons({ nodes: [listContainer] });
+        }
+      } catch (err) {
+        console.error(err);
+        listContainer.innerHTML = `<div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px; color: var(--color-danger);">Gagal memuat daftar sharing dari Supabase: ${err.message}</div>`;
+      }
+      return;
+    }
 
     if (!this.data.apiUrl) {
       listContainer.innerHTML = `<div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">API URL belum dikonfigurasi. Hubungkan Google Sheets terlebih dahulu.</div>`;
@@ -630,8 +848,7 @@ const app = {
     }
 
     try {
-      const res = await fetch(`${this.data.apiUrl}?action=GET_CALENDAR_SHARES&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
-      const json = await res.json();
+      const json = await this.fetchJSON(`${this.data.apiUrl}?action=GET_CALENDAR_SHARES&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
       if (json.status === 'success' && Array.isArray(json.data)) {
         if (json.data.length === 0) {
           listContainer.innerHTML = `<div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">Belum ada email Google lain yang ditambahkan.</div>`;
@@ -674,6 +891,50 @@ const app = {
       return;
     }
 
+    if (this.data.dbType === 'supabase') {
+      this.showLoading(true, "Menambahkan akses kalender...");
+      try {
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi.");
+        const newShare = {
+          id: 'rule-' + Math.random().toString(36).substring(2, 9),
+          email: email
+        };
+        const { error } = await this.supabase
+          .from('calendar_shares')
+          .insert(newShare);
+        if (error) throw error;
+
+        // Also call Google Apps Script to actually share the Google Calendar
+        if (this.data.apiUrl) {
+          try {
+            const syncResult = await this.fetchJSON(
+              `${this.data.apiUrl}?action=SHARE_CALENDAR&email=${encodeURIComponent(email)}&token=${localStorage.getItem('sessionToken') || ''}`,
+              { credentials: 'omit' }
+            );
+            console.log('SHARE_CALENDAR response:', syncResult);
+            if (syncResult.status !== 'success') {
+              this.showAlert(`⚠️ Email tersimpan di database, tetapi Google Calendar gagal di-share: ${syncResult.message || 'Unknown error'}`, "warning");
+            }
+          } catch (syncErr) {
+            console.warn('Background calendar share sync failed:', syncErr.message);
+            this.showAlert(`⚠️ Email tersimpan di database, tetapi sinkronisasi Google Calendar gagal: ${syncErr.message}`, "warning");
+          }
+        } else {
+          this.showAlert(`⚠️ Email tersimpan, tetapi Google Apps Script URL belum diisi. Google Calendar tidak akan di-share.`, "warning");
+        }
+        
+        emailInput.value = '';
+        this.showAlert(`Akses kalender berhasil dibagikan ke ${email}!`, "success");
+        this.loadCalendarShares();
+      } catch (err) {
+        console.error(err);
+        this.showAlert("Gagal menambahkan akses kalender: " + err.message, "error");
+      } finally {
+        this.showLoading(false);
+      }
+      return;
+    }
+
     if (!this.data.apiUrl) {
       this.showAlert("API URL belum dikonfigurasi.", "error");
       return;
@@ -681,8 +942,7 @@ const app = {
 
     this.showLoading(true, "Menambahkan akses kalender...");
     try {
-      const res = await fetch(`${this.data.apiUrl}?action=SHARE_CALENDAR&email=${encodeURIComponent(email)}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
-      const json = await res.json();
+      const json = await this.fetchJSON(`${this.data.apiUrl}?action=SHARE_CALENDAR&email=${encodeURIComponent(email)}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
       if (json.status === 'success') {
         emailInput.value = '';
         this.showAlert(`Akses kalender berhasil dibagikan ke ${email}!`, "success");
@@ -699,13 +959,47 @@ const app = {
   },
 
   async removeCalendarShare(ruleId) {
+    if (this.data.dbType === 'supabase') {
+      if (await this.showConfirm("Apakah Anda yakin ingin menghapus akses kalender untuk email ini?", "Hapus Akses Kalender")) {
+        this.showLoading(true, "Menghapus akses kalender...");
+        try {
+          if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi.");
+          const { error } = await this.supabase
+            .from('calendar_shares')
+            .delete()
+            .eq('id', ruleId);
+          if (error) throw error;
+
+          // Also call Google Apps Script to actually unshare from Google Calendar
+          if (this.data.apiUrl) {
+            try {
+              await this.fetchJSON(
+                `${this.data.apiUrl}?action=UNSHARE_CALENDAR&ruleId=${encodeURIComponent(ruleId)}&token=${localStorage.getItem('sessionToken') || ''}`,
+                { credentials: 'omit' }
+              );
+            } catch (syncErr) {
+              console.warn('Background calendar unshare sync failed:', syncErr.message);
+            }
+          }
+          
+          this.showAlert("Akses kalender berhasil dihapus.", "success");
+          this.loadCalendarShares();
+        } catch (err) {
+          console.error(err);
+          this.showAlert("Gagal menghapus akses: " + err.message, "error");
+        } finally {
+          this.showLoading(false);
+        }
+      }
+      return;
+    }
+
     if (!this.data.apiUrl) return;
 
     if (await this.showConfirm("Apakah Anda yakin ingin menghapus akses kalender untuk email ini?", "Hapus Akses Kalender")) {
       this.showLoading(true, "Menghapus akses kalender...");
       try {
-        const res = await fetch(`${this.data.apiUrl}?action=UNSHARE_CALENDAR&ruleId=${encodeURIComponent(ruleId)}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
-        const json = await res.json();
+        const json = await this.fetchJSON(`${this.data.apiUrl}?action=UNSHARE_CALENDAR&ruleId=${encodeURIComponent(ruleId)}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
         if (json.status === 'success') {
           this.showAlert("Akses kalender berhasil dihapus.", "success");
           this.loadCalendarShares();
@@ -721,6 +1015,93 @@ const app = {
     }
   },
 
+  async checkCalendarSyncStatus() {
+    const dot = document.getElementById('calendarSyncDot');
+    const label = document.getElementById('calendarSyncLabel');
+    const desc = document.getElementById('calendarSyncDesc');
+    const panel = document.getElementById('calendarSyncStatus');
+    if (!dot || !label || !desc) return;
+
+    // Reset to checking state
+    dot.style.background = '#64748b';
+    label.textContent = 'Memeriksa status sinkronisasi...';
+    desc.textContent = '';
+    if (panel) panel.style.borderColor = 'var(--color-border)';
+
+    const dbType = this.data.dbType || 'sheets';
+    const hasApiUrl = !!(this.data.apiUrl && this.data.apiUrl.trim());
+    const hasSupabase = !!(this.data.supabaseUrl && this.data.supabaseKey);
+
+    // Case 1: Google Sheets active
+    if (dbType === 'sheets' && hasApiUrl) {
+      try {
+        const json = await this.fetchJSON(
+          `${this.data.apiUrl}?action=GET_CALENDAR_SHARES&token=${localStorage.getItem('sessionToken') || ''}`,
+          { credentials: 'omit' }
+        );
+        if (json.status === 'success') {
+          dot.style.background = '#22c55e';
+          label.textContent = '✅ Tersambung ke Google Calendar';
+          desc.textContent = 'Database Aktif: Google Sheets — Semua jadwal tersinkronisasi langsung ke Google Calendar.';
+          if (panel) panel.style.borderColor = '#22c55e';
+        } else {
+          dot.style.background = '#f59e0b';
+          label.textContent = '⚠️ Terhubung, namun ada masalah';
+          desc.textContent = json.message || 'Google Apps Script merespons namun terdapat error.';
+          if (panel) panel.style.borderColor = '#f59e0b';
+        }
+      } catch (e) {
+        dot.style.background = '#ef4444';
+        label.textContent = '❌ Tidak terhubung ke Google Calendar';
+        desc.textContent = 'Gagal menjangkau Google Apps Script API. Periksa URL Sheets Anda.';
+        if (panel) panel.style.borderColor = '#ef4444';
+      }
+      return;
+    }
+
+    // Case 2: Supabase active WITH Google Sheets API (hybrid sync)
+    if (dbType === 'supabase' && hasSupabase && hasApiUrl) {
+      try {
+        const json = await this.fetchJSON(
+          `${this.data.apiUrl}?action=GET_CALENDAR_SHARES&token=${localStorage.getItem('sessionToken') || ''}`,
+          { credentials: 'omit' }
+        );
+        if (json.status === 'success') {
+          dot.style.background = '#22c55e';
+          label.textContent = '✅ Sinkronisasi Hybrid Aktif';
+          desc.textContent = 'Database: Supabase (utama) + Google Calendar tersinkronisasi otomatis di latar belakang.';
+          if (panel) panel.style.borderColor = '#22c55e';
+        } else {
+          dot.style.background = '#f59e0b';
+          label.textContent = '⚠️ Supabase OK, Google Calendar bermasalah';
+          desc.textContent = 'Data tersimpan di Supabase, namun sinkronisasi Google Calendar mungkin tidak berjalan.';
+          if (panel) panel.style.borderColor = '#f59e0b';
+        }
+      } catch (e) {
+        dot.style.background = '#f59e0b';
+        label.textContent = '⚠️ Supabase OK, Google Calendar tidak terhubung';
+        desc.textContent = 'Data tersimpan di Supabase. Sinkronisasi Google Calendar tidak aktif (URL Sheets tidak dapat dijangkau).';
+        if (panel) panel.style.borderColor = '#f59e0b';
+      }
+      return;
+    }
+
+    // Case 3: Supabase only, no Sheets API
+    if (dbType === 'supabase' && hasSupabase && !hasApiUrl) {
+      dot.style.background = '#ef4444';
+      label.textContent = '❌ Google Calendar tidak terhubung';
+      desc.textContent = 'Database Supabase aktif, tetapi Google Apps Script URL belum diisi. Jadwal tidak akan tersinkronisasi ke Google Calendar.';
+      if (panel) panel.style.borderColor = '#ef4444';
+      return;
+    }
+
+    // Case 4: nothing configured
+    dot.style.background = '#64748b';
+    label.textContent = '⚙️ Belum dikonfigurasi';
+    desc.textContent = 'Silakan isi URL Google Apps Script atau koneksi Supabase terlebih dahulu di tab Integrasi Database.';
+    if (panel) panel.style.borderColor = 'var(--color-border)';
+  },
+
   saveLogo(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -732,10 +1113,10 @@ const app = {
     }
     
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const base64 = evt.target.result;
-        localStorage.setItem('businessLogo', base64);
+        await this.saveAppSettings({ businessLogo: base64 });
         this.applyLogo();
         this.showAlert("Logo berhasil disimpan!", "success");
       } catch (err) {
@@ -750,6 +1131,7 @@ const app = {
 
   async removeLogo() {
     if (await this.showConfirm("Apakah Anda yakin ingin menghapus logo bisnis?", "Hapus Logo")) {
+      await this.saveAppSettings({ businessLogo: '' });
       localStorage.removeItem('businessLogo');
       this.applyLogo();
       this.showAlert("Logo berhasil dihapus.", "success");
@@ -759,6 +1141,37 @@ const app = {
   loadingInterval: null,
   loadingProgress: 0,
 
+  async fetchWithTimeout(url, options = {}, timeout = 15000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Koneksi database cloud habis waktu (Timeout 15s).');
+      }
+      throw error;
+    }
+  },
+  async fetchJSON(url, options = {}, timeout = 15000) {
+    const res = await this.fetchWithTimeout(url, options, timeout);
+    const text = await res.text();
+    const trimmed = text.trim();
+    if (trimmed.startsWith('<') || trimmed.startsWith('<!')) {
+      throw new Error('Server Google Sheets API mengembalikan respon halaman HTML/Teks (bukan data JSON yang sah). Hal ini biasanya terjadi apabila URL Web App salah/mati, skrip belum dipublikasikan sebagai "Anyone", Google meminta otorisasi ulang, atau Kuota Harian eksekusi Google Sheets Anda telah habis.');
+    }
+    try {
+      return JSON.parse(text);
+    } catch(err) {
+      throw new Error('Gagal mengurai data JSON dari server: ' + err.message);
+    }
+  },
   showLoading(show, text = 'Memuat...') {
     const el = document.getElementById('loadingOverlay');
     const textEl = document.getElementById('loadingText');
@@ -1020,16 +1433,68 @@ const app = {
     document.getElementById('loginError').classList.add('hidden');
     
     try {
-
       const passwordHash = await this.hashPassword(password);
-      
-      if (this.data.apiUrl) {
-        const res = await fetch(`${this.data.apiUrl}?action=LOGIN`, {
+
+      if (this.data.dbType === 'supabase') {
+        if (!this.supabase) {
+          throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        }
+        const { data: userData, error: userErr } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('username', username)
+          .maybeSingle();
+
+        if (userErr) {
+          throw new Error(userErr.message);
+        }
+
+        if (userData && userData.status === 'Inactive') {
+          document.getElementById('loginError').textContent = "Akun Anda dinonaktifkan. Hubungi Super Admin.";
+          document.getElementById('loginError').classList.remove('hidden');
+          return;
+        }
+
+        if (userData) {
+          const storedPwd = userData.password || '';
+          // Check 1: match as SHA-256 hash (normal path)
+          const matchHash = (storedPwd === passwordHash);
+          // Check 2: match as plaintext (legacy/migration path)
+          const matchPlain = (storedPwd === password);
+
+          if (matchHash || matchPlain) {
+            // If stored as plaintext, auto-upgrade to hash
+            if (matchPlain && !matchHash) {
+              console.log('Auto-upgrading plaintext password to SHA-256 hash for:', username);
+              try {
+                await this.supabase.from('users').update({ password: passwordHash }).eq('id', userData.id);
+                userData.password = passwordHash;
+              } catch (upgradeErr) {
+                console.warn('Password upgrade failed:', upgradeErr.message);
+              }
+            }
+            const loginUser = { ...userData, password: passwordHash };
+            localStorage.setItem('currentUser', JSON.stringify(loginUser));
+            localStorage.setItem('sessionToken', 'sb-token-' + userData.id);
+            this.data.currentUser = loginUser;
+            this.checkAuth();
+            await this.loadData();
+            const defaultPage = this.getDefaultLandingPage(loginUser);
+            this.navigate(defaultPage);
+          } else {
+            document.getElementById('loginError').textContent = "Username atau password salah.";
+            document.getElementById('loginError').classList.remove('hidden');
+          }
+        } else {
+          document.getElementById('loginError').textContent = "Username atau password salah.";
+          document.getElementById('loginError').classList.remove('hidden');
+        }
+      } else if (this.data.apiUrl) {
+        const json = await this.fetchJSON(`${this.data.apiUrl}?action=LOGIN`, {
           method: 'POST',
           credentials: 'omit',
           body: JSON.stringify({ username, password: passwordHash })
         });
-        const json = await res.json();
         
         if (json.status === 'success') {
           localStorage.setItem('currentUser', JSON.stringify(json.user));
@@ -1049,7 +1514,7 @@ const app = {
       }
     } catch (e) {
       console.error("Login error:", e);
-      document.getElementById('loginError').textContent = "Connection error. Please try again.";
+      document.getElementById('loginError').textContent = "Error: " + (e.message || "Connection error.");
       document.getElementById('loginError').classList.remove('hidden');
     } finally {
       this.showLoading(false);
@@ -1207,7 +1672,29 @@ const app = {
       if(page === 'schedules') this.renderSchedules();
       if(page === 'users') this.renderUsers();
       if(page === 'settings') {
+        // Update database active badge
+        const badge = document.getElementById('activeDatabaseBadge');
+        if (badge) {
+          const currentDb = (this.data.dbType === 'supabase') ? 'Supabase (Fast & Secure)' : 'Google Sheets (Slow)';
+          badge.textContent = `Database Aktif: ${currentDb}`;
+          if (this.data.dbType === 'supabase') {
+            badge.style.background = 'var(--color-success)';
+          } else {
+            badge.style.background = 'var(--color-primary)';
+          }
+        }
+
+        // Default to business tab
+        this.switchSettingsTab('business');
+
         document.getElementById('settingApiUrl').value = this.data.apiUrl;
+        const dbTypeInput = document.getElementById('settingDbType');
+        if (dbTypeInput) {
+          dbTypeInput.value = this.data.dbType || 'sheets';
+          document.getElementById('settingSupabaseUrl').value = this.data.supabaseUrl || '';
+          document.getElementById('settingSupabaseKey').value = this.data.supabaseKey || '';
+          this.toggleDbSettingsVisibility();
+        }
         const paymentAccInput = document.getElementById('settingPaymentAccounts');
         if (paymentAccInput) paymentAccInput.value = localStorage.getItem('paymentAccounts') || '';
         const companyPhoneInput = document.getElementById('settingCompanyPhone');
@@ -1267,7 +1754,55 @@ const app = {
   // === Data Layer ===
   async loadData(quiet = false) {
     if (!quiet) this.showLoading(true);
-    if (!this.data.apiUrl) {
+    if (this.data.dbType === 'supabase') {
+      try {
+        if (!this.supabase) {
+          throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        }
+        
+        const { data: dbMenus, error: menuErr } = await this.supabase.from('menus').select('*');
+        if (menuErr) throw new Error("Menus: " + menuErr.message);
+        this.data.menus = dbMenus || [];
+        localStorage.setItem('menus', JSON.stringify(this.data.menus));
+
+        const { data: dbInvoices, error: invErr } = await this.supabase.from('invoices').select('*');
+        if (invErr) throw new Error("Invoices: " + invErr.message);
+        this.data.invoices = (dbInvoices || []).map(inv => ({
+          ...inv,
+          items: typeof inv.items === 'string' ? JSON.parse(inv.items) : (inv.items || [])
+        }));
+        localStorage.setItem('invoices', JSON.stringify(this.data.invoices));
+
+        const { data: dbUsers, error: userErr } = await this.supabase.from('users').select('*');
+        if (userErr) throw new Error("Users: " + userErr.message);
+        this.data.users = dbUsers || [];
+        localStorage.setItem('users', JSON.stringify(this.data.users));
+
+        const { data: dbSchedules, error: schedErr } = await this.supabase.from('schedules').select('*');
+        if (schedErr) throw new Error("Schedules: " + schedErr.message);
+        this.data.schedules = dbSchedules || [];
+        localStorage.setItem('schedules', JSON.stringify(this.data.schedules));
+
+        // Load persistent app settings (payment info, phone, logo)
+        await this.loadAppSettings();
+
+        if (this.data.currentUser) {
+          const freshUser = this.data.users.find(u => u.id == this.data.currentUser.id);
+          if (freshUser) {
+            this.data.currentUser = freshUser;
+            localStorage.setItem('currentUser', JSON.stringify(this.data.currentUser));
+            this.applyRoles();
+          }
+        }
+      } catch (e) {
+        console.error("Error loading data from Supabase", e);
+        if (!quiet) {
+          this.showAlert(`Gagal memuat data dari Supabase: ${e.message}`, "error");
+          this.showLoading(false);
+        }
+        throw e;
+      }
+    } else if (!this.data.apiUrl) {
       // Load from LocalStorage
       this.data.menus = JSON.parse(localStorage.getItem('menus') || '[]');
       this.data.invoices = JSON.parse(localStorage.getItem('invoices') || '[]');
@@ -1276,8 +1811,7 @@ const app = {
     } else {
       // Load from Google Sheets
       try {
-        const res = await fetch(`${this.data.apiUrl}?action=GET_INIT_DATA&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
-        const json = await res.json();
+        const json = await this.fetchJSON(`${this.data.apiUrl}?action=GET_INIT_DATA&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
         
         if (json.status === 'success' && json.data) {
           this.data.menus = json.data.Menus || [];
@@ -1317,8 +1851,10 @@ const app = {
         }
       } catch (e) {
         console.error("Error loading data", e);
-        this.showAlert(`Gagal memuat data dari API Database: ${e.message}\nSilakan periksa URL Web App Google Sheets Anda di menu Settings.`, "error");
-        if (!quiet) this.showLoading(false);
+        if (!quiet) {
+          this.showAlert(`Gagal memuat data dari API Database: ${e.message}\nSilakan periksa URL Web App Google Sheets Anda di menu Settings.`, "error");
+          this.showLoading(false);
+        }
         throw e; // Lemparkan error agar fungsi pemanggil (seperti refreshData) tahu ini gagal!
       }
     }
@@ -1336,10 +1872,21 @@ const app = {
   },
 
   async fetchData(sheet) {
+    if (this.data.dbType === 'supabase') {
+      try {
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        const target = sheet.toLowerCase();
+        const { data, error } = await this.supabase.from(target).select('*');
+        if (error) throw error;
+        return data || [];
+      } catch (e) {
+        console.error(e);
+        return [];
+      }
+    }
     if(!this.data.apiUrl) return [];
     try {
-      const res = await fetch(`${this.data.apiUrl}?action=GET_ALL&sheet=${sheet}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
-      const json = await res.json();
+      const json = await this.fetchJSON(`${this.data.apiUrl}?action=GET_ALL&sheet=${sheet}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
       if(json.status === 'success') return json.data;
       return [];
     } catch(e) {
@@ -1360,14 +1907,41 @@ const app = {
       this.updateNotifications();
     }
 
-    if (this.data.apiUrl) {
+    if (this.data.dbType === 'supabase') {
       try {
-        const res = await fetch(`${this.data.apiUrl}?action=ADD_ROW&sheet=${sheet}`, { 
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        const dbPayload = { ...payload };
+        if (typeof dbPayload.items === 'string') {
+          try { dbPayload.items = JSON.parse(dbPayload.items); } catch(err) {}
+        }
+        if (typeof dbPayload.paymentHistory === 'string') {
+          try { dbPayload.paymentHistory = JSON.parse(dbPayload.paymentHistory); } catch(err) {}
+        }
+        
+        const { error } = await this.supabase
+          .from(target)
+          .insert(dbPayload);
+        if (error) throw error;
+
+        // Background Google Calendar Sync (if Sheets API is configured)
+        if (this.data.apiUrl && (target === 'schedules' || target === 'invoices')) {
+          this.fetchJSON(`${this.data.apiUrl}?action=ADD_ROW&sheet=${sheet}`, { 
+            method: 'POST', 
+            credentials: 'omit', 
+            body: JSON.stringify({ ...payload, token: localStorage.getItem('sessionToken') }) 
+          }).catch(e => console.warn("Background Google Calendar sync failed:", e));
+        }
+      } catch (e) {
+        console.error(e);
+        this.showAlert("Gagal menyimpan data ke database cloud: " + e.message, "error");
+      }
+    } else if (this.data.apiUrl) {
+      try {
+        const json = await this.fetchJSON(`${this.data.apiUrl}?action=ADD_ROW&sheet=${sheet}`, { 
           method: 'POST', 
           credentials: 'omit', 
           body: JSON.stringify({ ...payload, token: localStorage.getItem('sessionToken') }) 
         });
-        const json = await res.json();
         if (json.status === 'success' && json.data) {
           const index = items.findIndex(i => i.id == json.data.id);
           if (index > -1) {
@@ -1398,14 +1972,42 @@ const app = {
       this.updateNotifications();
     }
 
-    if (this.data.apiUrl) {
+    if (this.data.dbType === 'supabase') {
       try {
-        const res = await fetch(`${this.data.apiUrl}?action=UPDATE_ROW&sheet=${sheet}`, { 
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        const dbPayload = { ...payload };
+        if (typeof dbPayload.items === 'string') {
+          try { dbPayload.items = JSON.parse(dbPayload.items); } catch(err) {}
+        }
+        if (typeof dbPayload.paymentHistory === 'string') {
+          try { dbPayload.paymentHistory = JSON.parse(dbPayload.paymentHistory); } catch(err) {}
+        }
+        
+        const { error } = await this.supabase
+          .from(target)
+          .update(dbPayload)
+          .eq('id', payload.id);
+        if (error) throw error;
+
+        // Background Google Calendar Sync (if Sheets API is configured)
+        if (this.data.apiUrl && (target === 'schedules' || target === 'invoices')) {
+          this.fetchJSON(`${this.data.apiUrl}?action=UPDATE_ROW&sheet=${sheet}`, { 
+            method: 'POST', 
+            credentials: 'omit', 
+            body: JSON.stringify({ ...payload, token: localStorage.getItem('sessionToken') }) 
+          }).catch(e => console.warn("Background Google Calendar sync failed:", e));
+        }
+      } catch (e) {
+        console.error(e);
+        this.showAlert("Gagal menyimpan data ke database cloud: " + e.message, "error");
+      }
+    } else if (this.data.apiUrl) {
+      try {
+        const json = await this.fetchJSON(`${this.data.apiUrl}?action=UPDATE_ROW&sheet=${sheet}`, { 
           method: 'POST', 
           credentials: 'omit', 
           body: JSON.stringify({ ...payload, token: localStorage.getItem('sessionToken') }) 
         });
-        const json = await res.json();
         if (json.status === 'success' && json.data) {
           const idx = items.findIndex(i => i.id == json.data.id);
           if (idx > -1) {
@@ -1433,9 +2035,27 @@ const app = {
     localStorage.setItem(target, JSON.stringify(items));
     this.updateNotifications();
 
-    if (this.data.apiUrl) {
+    if (this.data.dbType === 'supabase') {
       try {
-        await fetch(`${this.data.apiUrl}?action=DELETE_ROW&sheet=${sheet}&id=${id}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi di Settings.");
+        const { error } = await this.supabase
+          .from(target)
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+
+        // Background Google Calendar Sync (if Sheets API is configured)
+        if (this.data.apiUrl && (target === 'schedules' || target === 'invoices')) {
+          this.fetchWithTimeout(`${this.data.apiUrl}?action=DELETE_ROW&sheet=${sheet}&id=${id}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' })
+            .catch(e => console.warn("Background Google Calendar sync failed:", e));
+        }
+      } catch (e) {
+        console.error(e);
+        this.showAlert("Gagal menghapus data dari database cloud: " + e.message, "error");
+      }
+    } else if (this.data.apiUrl) {
+      try {
+        await this.fetchWithTimeout(`${this.data.apiUrl}?action=DELETE_ROW&sheet=${sheet}&id=${id}&token=${localStorage.getItem('sessionToken') || ''}`, { credentials: 'omit' });
       } catch(e) {
         console.error(e);
         this.showAlert("Gagal menghapus data dari cloud server.", "error");
@@ -2640,37 +3260,73 @@ const app = {
     let inv = null;
 
     try {
-      const res = await fetch(
-        `${apiUrl}?action=GET_SHORT_LINK&code=${encodeURIComponent(code)}`,
-        { credentials: 'omit' }
-      );
-      const json = await res.json();
-      if (json.status === 'success' && json.data) {
-        // json.data is the compact base64-encoded invoice string
-        const b64 = json.data.replace(/-/g, '+').replace(/_/g, '/');
-        let parsed;
-        try { parsed = JSON.parse(decodeURIComponent(escape(atob(b64)))); }
-        catch (_) { parsed = JSON.parse(decodeURIComponent(atob(b64))); }
-        if (parsed.n) {
-          inv = {
-            invoiceNumber:    parsed.n,
-            customerName:     parsed.cn || '',
-            vendor:    parsed.cp || '',
-            cateringDate:     parsed.cd || '',
-            cateringLocation: parsed.cl || '',
-            items:            (parsed.it || []).map(i => ({ name:i.n, qty:i.q, price:i.p, unit:i.u, subtotal:i.st })),
-            totalAmount:      parsed.ta || 0,
-            paidAmount:       parsed.pa || 0,
-            paymentHistory:   (parsed.ph || []).map(p => ({ date:p.d, amount:p.a, method:p.m, notes:p.n })),
-            status:           parsed.s  || '',
-            notes:            parsed.nt || '',
-            createdAt:        parsed.ca || '',
-            discount:         parsed.dc || 0,
-            discountType:     parsed.dt || 'none',
-            additionalFee:    parsed.af || 0
-          };
-        } else {
-          inv = parsed;
+      if (this.data.dbType === 'supabase') {
+        if (!this.supabase) throw new Error("Klien database Supabase belum terkonfigurasi.");
+        const { data: linkData, error: linkErr } = await this.supabase
+          .from('short_links')
+          .select('*')
+          .eq('id', code)
+          .maybeSingle();
+        if (linkErr) throw linkErr;
+        
+        if (linkData && linkData.data) {
+          const b64 = linkData.data.replace(/-/g, '+').replace(/_/g, '/');
+          let parsed;
+          try { parsed = JSON.parse(decodeURIComponent(escape(atob(b64)))); }
+          catch (_) { parsed = JSON.parse(decodeURIComponent(atob(b64))); }
+          if (parsed.n) {
+            inv = {
+              invoiceNumber:    parsed.n,
+              customerName:     parsed.cn || '',
+              vendor:           parsed.cp || '',
+              cateringDate:     parsed.cd || '',
+              cateringLocation: parsed.cl || '',
+              items:            (parsed.it || []).map(i => ({ name:i.n, qty:i.q, price:i.p, unit:i.u, subtotal:i.st })),
+              totalAmount:      parsed.ta || 0,
+              paidAmount:       parsed.pa || 0,
+              paymentHistory:   (parsed.ph || []).map(p => ({ date:p.d, amount:p.a, method:p.m, notes:p.n })),
+              status:           parsed.s  || '',
+              notes:            parsed.nt || '',
+              createdAt:        parsed.ca || '',
+              discount:         parsed.dc || 0,
+              discountType:     parsed.dt || 'none',
+              additionalFee:    parsed.af || 0
+            };
+          } else {
+            inv = parsed;
+          }
+        }
+      } else {
+        const json = await this.fetchJSON(
+          `${apiUrl}?action=GET_SHORT_LINK&code=${encodeURIComponent(code)}`,
+          { credentials: 'omit' }
+        );
+        if (json.status === 'success' && json.data) {
+          const b64 = json.data.replace(/-/g, '+').replace(/_/g, '/');
+          let parsed;
+          try { parsed = JSON.parse(decodeURIComponent(escape(atob(b64)))); }
+          catch (_) { parsed = JSON.parse(decodeURIComponent(atob(b64))); }
+          if (parsed.n) {
+            inv = {
+              invoiceNumber:    parsed.n,
+              customerName:     parsed.cn || '',
+              vendor:           parsed.cp || '',
+              cateringDate:     parsed.cd || '',
+              cateringLocation: parsed.cl || '',
+              items:            (parsed.it || []).map(i => ({ name:i.n, qty:i.q, price:i.p, unit:i.u, subtotal:i.st })),
+              totalAmount:      parsed.ta || 0,
+              paidAmount:       parsed.pa || 0,
+              paymentHistory:   (parsed.ph || []).map(p => ({ date:p.d, amount:p.a, method:p.m, notes:p.n })),
+              status:           parsed.s  || '',
+              notes:            parsed.nt || '',
+              createdAt:        parsed.ca || '',
+              discount:         parsed.dc || 0,
+              discountType:     parsed.dt || 'none',
+              additionalFee:    parsed.af || 0
+            };
+          } else {
+            inv = parsed;
+          }
         }
       }
     } catch (err) {
@@ -2789,38 +3445,77 @@ const app = {
       inv = localInvoices.find(i => i.invoiceNumber == invoiceNumber || i.id == invoiceNumber);
     }
 
-    // === PRIORITY 3: Fetch from Google Sheets API (fallback with phone verification) ===
+    // === PRIORITY 3: Fetch from Cloud Database (fallback with vendor verification) ===
     if (!inv) {
-      const apiUrl = this.data.apiUrl || this.DEFAULT_API_URL;
-      if (apiUrl) {
-        let vendorInput = localStorage.getItem(`verify_vendor_${invoiceNumber}`);
-        if (!vendorInput) {
-          vendorInput = prompt("Silakan masukkan Nama Vendor yang terdaftar pada invoice ini untuk memverifikasi keamanan:");
-          if (vendorInput) {
-            vendorInput = vendorInput.trim();
-          }
-        }
-        
-        if (vendorInput) {
-          try {
-            const res = await fetch(`${apiUrl}?action=GET_GUEST_INVOICE&invoiceNumber=${encodeURIComponent(invoiceNumber)}&phone=${encodeURIComponent(vendorInput)}`, { credentials: 'omit' });
-            const json = await res.json();
-            if (json.status === 'success') {
-              inv = json.data;
-              localStorage.setItem(`verify_vendor_${invoiceNumber}`, vendorInput); // Cache vendor name locally for comfort
-            } else {
-              apiError = json.message || 'Nama Vendor salah atau invoice tidak ditemukan.';
-              localStorage.removeItem(`verify_vendor_${invoiceNumber}`);
-            }
-          } catch (err) {
-            apiError = `Gagal terhubung ke server: ${err.message}`;
-            console.error("Gagal memuat invoice dari cloud:", err);
-          }
+      if (this.data.dbType === 'supabase') {
+        if (!this.supabase) {
+          apiError = 'Klien database Supabase belum terkonfigurasi.';
         } else {
-          apiError = "Verifikasi keamanan diperlukan untuk melihat invoice ini.";
+          let vendorInput = localStorage.getItem(`verify_vendor_${invoiceNumber}`);
+          if (!vendorInput) {
+            vendorInput = prompt("Silakan masukkan Nama Vendor yang terdaftar pada invoice ini untuk memverifikasi keamanan:");
+            if (vendorInput) {
+              vendorInput = vendorInput.trim();
+            }
+          }
+          
+          if (vendorInput) {
+            try {
+              const { data: dbInv, error: dbErr } = await this.supabase
+                .from('invoices')
+                .select('*')
+                .eq('invoiceNumber', invoiceNumber)
+                .eq('vendor', vendorInput)
+                .maybeSingle();
+              if (dbErr) throw dbErr;
+              if (dbInv) {
+                inv = {
+                  ...dbInv,
+                  items: typeof dbInv.items === 'string' ? JSON.parse(dbInv.items) : (dbInv.items || [])
+                };
+                localStorage.setItem(`verify_vendor_${invoiceNumber}`, vendorInput);
+              } else {
+                apiError = 'Nama Vendor salah atau invoice tidak ditemukan.';
+                localStorage.removeItem(`verify_vendor_${invoiceNumber}`);
+              }
+            } catch (err) {
+              apiError = `Gagal terhubung ke Supabase: ${err.message}`;
+            }
+          } else {
+            apiError = "Verifikasi keamanan diperlukan untuk melihat invoice ini.";
+          }
         }
       } else {
-        apiError = 'API URL belum dikonfigurasi.';
+        const apiUrl = this.data.apiUrl || this.DEFAULT_API_URL;
+        if (apiUrl) {
+          let vendorInput = localStorage.getItem(`verify_vendor_${invoiceNumber}`);
+          if (!vendorInput) {
+            vendorInput = prompt("Silakan masukkan Nama Vendor yang terdaftar pada invoice ini untuk memverifikasi keamanan:");
+            if (vendorInput) {
+              vendorInput = vendorInput.trim();
+            }
+          }
+          
+          if (vendorInput) {
+            try {
+              const json = await this.fetchJSON(`${apiUrl}?action=GET_GUEST_INVOICE&invoiceNumber=${encodeURIComponent(invoiceNumber)}&phone=${encodeURIComponent(vendorInput)}`, { credentials: 'omit' });
+              if (json.status === 'success') {
+                inv = json.data;
+                localStorage.setItem(`verify_vendor_${invoiceNumber}`, vendorInput); // Cache vendor name locally for comfort
+              } else {
+                apiError = json.message || 'Nama Vendor salah atau invoice tidak ditemukan.';
+                localStorage.removeItem(`verify_vendor_${invoiceNumber}`);
+              }
+            } catch (err) {
+              apiError = `Gagal terhubung ke server: ${err.message}`;
+              console.error("Gagal memuat invoice dari cloud:", err);
+            }
+          } else {
+            apiError = "Verifikasi keamanan diperlukan untuk melihat invoice ini.";
+          }
+        } else {
+          apiError = 'API URL belum dikonfigurasi.';
+        }
       }
     }
 
@@ -3734,7 +4429,6 @@ const app = {
       vendor: document.getElementById('editInvVendor').value.trim(),
       cateringLocation: document.getElementById('editInvCateringLocation').value.trim(),
       cateringCity: document.getElementById('editInvCateringCity').value,
-      CateringCity: document.getElementById('editInvCateringCity').value,
       cateringDate: document.getElementById('editInvCateringDate').value,
       paidAmount: paidAmount,
       paymentHistory: JSON.stringify(this.editInvoiceState.paymentHistory),
@@ -4260,7 +4954,6 @@ const app = {
       vendor: vendorVal,
       cateringLocation: catLocation,
       cateringCity: catCity,
-      CateringCity: catCity,
       cateringDate: catDate,
       items: JSON.stringify(this.currentInvoice.items),
       subtotalAmount: this.currentInvoice.subtotal || this.currentInvoice.total,
@@ -5313,7 +6006,7 @@ const app = {
     
     document.getElementById('profileName').value = user.name || user.username;
     document.getElementById('profileUsername').value = user.username || '';
-    document.getElementById('profilePassword').value = user.password || '';
+    document.getElementById('profilePassword').value = "********";
     
     this.openModal('profileModal');
   },
@@ -5346,7 +6039,8 @@ const app = {
     this.showLoading(true, "Updating account data...");
     
     if (password === "********") {
-      password = "";
+      const existingUser = this.data.users.find(u => u.id == this.data.currentUser.id) || this.data.currentUser;
+      password = existingUser ? (existingUser.password || '') : '';
     } else {
       password = await this.hashPassword(password);
     }
@@ -5907,7 +6601,7 @@ const app = {
     // Dynamic search via OSM Nominatim API
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=id&q=${encodeURIComponent(cleanName)}`;
-      const res = await fetch(url, {
+      const res = await this.fetchWithTimeout(url, {
         headers: { 'User-Agent': 'PoetrysCateringDashboard/1.0' }
       });
       const data = await res.json();
@@ -6581,21 +7275,152 @@ const app = {
   },
 
   // === Settings ===
-  saveSettings() {
+  async saveSettings() {
     let url = document.getElementById('settingApiUrl').value.trim();
     if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
     }
     localStorage.setItem('apiUrl', url);
     this.data.apiUrl = url;
+
+    const dbType = document.getElementById('settingDbType').value;
+    let supabaseUrl = document.getElementById('settingSupabaseUrl').value.trim();
+    const supabaseKey = document.getElementById('settingSupabaseKey').value.trim();
+
+    // Sanitize URL to strip trailing /rest/v1 if present
+    if (supabaseUrl.endsWith('/rest/v1')) {
+      supabaseUrl = supabaseUrl.slice(0, -8);
+    } else if (supabaseUrl.endsWith('/rest/v1/')) {
+      supabaseUrl = supabaseUrl.slice(0, -9);
+    }
+
+    localStorage.setItem('dbType', dbType);
+    localStorage.setItem('supabaseUrl', supabaseUrl);
+    localStorage.setItem('supabaseKey', supabaseKey);
+
+    this.data.dbType = dbType;
+    this.data.supabaseUrl = supabaseUrl;
+    this.data.supabaseKey = supabaseKey;
+
+    if (dbType === 'supabase' && supabaseUrl && supabaseKey) {
+      try {
+        this.supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+      } catch (err) {
+        console.error("Failed to initialize Supabase client on save:", err);
+      }
+    } else {
+      this.supabase = null;
+    }
+
     const paymentAccounts = document.getElementById('settingPaymentAccounts').value;
-    localStorage.setItem('paymentAccounts', paymentAccounts);
-    
     const companyPhone = document.getElementById('settingCompanyPhone').value.trim();
-    localStorage.setItem('companyPhone', companyPhone);
+
+    // Save persistently to database (Supabase or Sheets), not just localStorage
+    await this.saveAppSettings({
+      paymentAccounts,
+      companyPhone
+    });
+
+    // Save DB config centrally to Google Sheets (so other browsers can auto-detect)
+    await this.saveDbConfig();
     
     this.showAlert("Pengaturan disimpan! Memuat ulang data...", "success");
     this.loadData();
+  },
+
+  toggleDbSettingsVisibility() {
+    const dbType = document.getElementById('settingDbType').value;
+    const configSupabase = document.getElementById('configSupabase');
+    if (dbType === 'supabase') {
+      if (configSupabase) configSupabase.style.display = 'block';
+    } else {
+      if (configSupabase) configSupabase.style.display = 'none';
+    }
+  },
+
+  switchSettingsTab(tabId) {
+    // Hide all tab panes
+    const panes = document.querySelectorAll('.settings-tab-pane');
+    panes.forEach(pane => {
+      pane.style.display = 'none';
+    });
+
+    // Remove active class from all tab buttons
+    const buttons = document.querySelectorAll('#settingsTabs .settings-nav-link');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+    });
+
+    // Show selected tab pane
+    const targetPane = document.getElementById(`tab-${tabId}`);
+    if (targetPane) {
+      targetPane.style.display = 'block';
+    }
+
+    // Add active class to selected tab button
+    const targetBtn = document.getElementById(`tab-${tabId}-btn`);
+    if (targetBtn) {
+      targetBtn.classList.add('active');
+    }
+
+    // Auto-run side effects when switching to specific tabs
+    if (tabId === 'calendar') {
+      this.checkCalendarSyncStatus();
+      this.loadCalendarShares();
+    }
+  },
+
+  exportDatabaseToSQL() {
+    let sql = `-- Poetry's Catering Database Export Backup\n`;
+    sql += `-- Generated on ${new Date().toLocaleString()}\n\n`;
+
+    // 1. Table: Users
+    sql += `-- Table: users\n`;
+    sql += `TRUNCATE TABLE "users" CASCADE;\n`;
+    this.data.users.forEach(u => {
+      const allowed = u.allowedmenus ? `'${u.allowedmenus.replace(/'/g, "''")}'` : 'NULL';
+      sql += `INSERT INTO "users" ("id", "name", "username", "password", "role", "allowedmenus", "status") VALUES ('${u.id}', '${(u.name || '').replace(/'/g, "''")}', '${(u.username || '').replace(/'/g, "''")}', '${u.password}', '${u.role}', ${allowed}, '${u.status}');\n`;
+    });
+    sql += `\n`;
+
+    // 2. Table: Menus
+    sql += `-- Table: menus\n`;
+    sql += `TRUNCATE TABLE "menus" CASCADE;\n`;
+    this.data.menus.forEach(m => {
+      sql += `INSERT INTO "menus" ("id", "name", "price", "type", "status") VALUES ('${m.id}', '${m.name.replace(/'/g, "''")}', ${Number(m.price) || 0}, '${m.type}', '${m.status}');\n`;
+    });
+    sql += `\n`;
+
+    // 3. Table: Invoices
+    sql += `-- Table: invoices\n`;
+    sql += `TRUNCATE TABLE "invoices" CASCADE;\n`;
+    this.data.invoices.forEach(inv => {
+      const itemsStr = typeof inv.items === 'string' ? inv.items : JSON.stringify(inv.items || []);
+      const payHistoryStr = typeof inv.paymentHistory === 'string' ? inv.paymentHistory : JSON.stringify(inv.paymentHistory || []);
+      sql += `INSERT INTO "invoices" ("id", "invoiceNumber", "customerName", "vendor", "cateringDate", "cateringLocation", "cateringCity", "items", "totalAmount", "paidAmount", "additionalFee", "paymentHistory", "status", "notes", "createdAt") VALUES ('${inv.id}', '${inv.invoiceNumber}', '${(inv.customerName || '').replace(/'/g, "''")}', '${(inv.vendor || '').replace(/'/g, "''")}', '${inv.cateringDate || ''}', '${(inv.cateringLocation || '').replace(/'/g, "''")}', '${inv.cateringCity || ''}', $$${itemsStr}$$, ${Number(inv.totalAmount) || 0}, ${Number(inv.paidAmount) || 0}, ${Number(inv.additionalFee) || 0}, $$${payHistoryStr}$$, '${inv.status}', '${(inv.notes || '').replace(/'/g, "''")}', '${inv.createdAt || ''}');\n`;
+    });
+    sql += `\n`;
+
+    // 4. Table: Schedules
+    sql += `-- Table: schedules\n`;
+    sql += `TRUNCATE TABLE "schedules" CASCADE;\n`;
+    this.data.schedules.forEach(s => {
+      sql += `INSERT INTO "schedules" ("id", "type", "title", "date", "location", "notes", "status", "createdat") VALUES ('${s.id}', '${s.type}', '${(s.title || '').replace(/'/g, "''")}', '${s.date || ''}', '${(s.location || '').replace(/'/g, "''")}', '${(s.notes || '').replace(/'/g, "''")}', '${s.status}', '${s.createdat || ''}');\n`;
+    });
+    sql += `\n`;
+
+    // Trigger download
+    const blob = new Blob([sql], { type: 'text/sql' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `poetrys_catering_backup_${new Date().toISOString().substring(0, 10)}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.showAlert("Berkas SQL Backup berhasil diunduh! Silakan buka Supabase -> SQL Editor -> Tempel file ini dan jalankan.", "success");
   },
 
   // === Utils ===
@@ -7482,13 +8307,22 @@ const app = {
     });
 
     // Login
-    document.getElementById('loginForm').addEventListener('submit', (e) => {
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      document.getElementById('loginError').classList.add('hidden');
-      this.login(
-        document.getElementById('loginUsername').value,
-        document.getElementById('loginPassword').value
-      );
+      const errEl = document.getElementById('loginError');
+      if (errEl) errEl.classList.add('hidden');
+      try {
+        await this.login(
+          document.getElementById('loginUsername').value,
+          document.getElementById('loginPassword').value
+        );
+      } catch (err) {
+        console.error('Login caught error:', err);
+        if (errEl) {
+          errEl.textContent = 'Error: ' + (err.message || String(err));
+          errEl.classList.remove('hidden');
+        }
+      }
     });
 
     document.querySelectorAll('.btn-logout-action').forEach(btn => {

@@ -1,0 +1,11 @@
+# Folder Rahasia / Private (Backup & DB Patch Scripts)
+_private_database_and_backups/
+
+# Backup & Temporary files
+*.bak
+*.backup.*
+app_check.js
+
+# OS Generated Files
+.DS_Store
+Thumbs.db

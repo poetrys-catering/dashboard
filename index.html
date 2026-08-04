@@ -17,7 +17,7 @@
 
   <!-- Bootstrap 5 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="style.css?v=20260719_v195">
+  <link rel="stylesheet" href="style.css?v=20260804_v210">
   
   <!-- Nav Active Override — inline to prevent cache issues -->
   <style>
@@ -1081,82 +1081,169 @@
             <p>Configure database connection</p>
           </div>
         </header>
-        <div class="glass p-6" style="max-width: 600px;">
-          <!-- Payment Accounts (Admin & Super Admin) -->
-          <div style="margin-bottom: 2rem;">
-            <h3>Informasi Pembayaran</h3>
-            <div class="form-group" style="margin-top: 1rem;">
-              <label>Informasi Rekening Pembayaran</label>
-              <textarea id="settingPaymentAccounts" class="form-control" rows="3" placeholder="Contoh:&#10;BCA: 123-456-7890 a.n. Katering&#10;Mandiri: 098-765-4321 a.n. Katering" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%;"></textarea>
-              <p class="text-muted" style="font-size: 11px; margin-top: 4px;">Teks ini akan ditampilkan di struk PDF Invoice. Gunakan Enter (baris baru) untuk memisahkan bank.</p>
-            </div>
-            
-            <div class="form-group" style="margin-top: 1rem;">
-              <label>Nomor WhatsApp / Kontak Bisnis</label>
-              <input type="text" id="settingCompanyPhone" class="form-control" placeholder="Contoh: +62 812-xxxx-xxxx" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%;">
-              <p class="text-muted" style="font-size: 11px; margin-top: 4px;">Nomor kontak bisnis yang akan ditampilkan pada bagian atas (header) PDF Invoice.</p>
-            </div>
+        <div class="glass p-6" style="max-width: 800px; display: flex; gap: 2rem; flex-wrap: wrap;">
+          <!-- Left Tab Buttons Sidebar -->
+          <div style="flex: 1 1 200px; min-width: 180px; border-right: 1px solid var(--color-border); padding-right: 1.5rem;">
+            <ul class="nav flex-column nav-pills" id="settingsTabs" role="tablist" style="gap: 8px;">
+              <li class="nav-item">
+                <button class="settings-nav-link active w-100 text-start" id="tab-business-btn" onclick="app.switchSettingsTab('business')" style="padding: 10px 12px; border-radius: 8px; font-weight: 500; font-size: 13px;">
+                  <i data-lucide="building-2" style="width:16px; height:16px; margin-right:8px; display:inline-block; vertical-align:middle;"></i> Profil Bisnis
+                </button>
+              </li>
+              <li class="nav-item">
+                <button class="settings-nav-link w-100 text-start" id="tab-payment-btn" onclick="app.switchSettingsTab('payment')" style="padding: 10px 12px; border-radius: 8px; font-weight: 500; font-size: 13px;">
+                  <i data-lucide="credit-card" style="width:16px; height:16px; margin-right:8px; display:inline-block; vertical-align:middle;"></i> Metode Pembayaran
+                </button>
+              </li>
+              <li class="nav-item admin-only">
+                <button class="settings-nav-link w-100 text-start" id="tab-calendar-btn" onclick="app.switchSettingsTab('calendar')" style="padding: 10px 12px; border-radius: 8px; font-weight: 500; font-size: 13px;">
+                  <i data-lucide="calendar" style="width:16px; height:16px; margin-right:8px; display:inline-block; vertical-align:middle;"></i> Berbagi Kalender
+                </button>
+              </li>
+              <li class="nav-item super-admin-only" id="dbSettingsTabItem">
+                <button class="settings-nav-link w-100 text-start" id="tab-database-btn" onclick="app.switchSettingsTab('database')" style="padding: 10px 12px; border-radius: 8px; font-weight: 500; font-size: 13px;">
+                  <i data-lucide="database" style="width:16px; height:16px; margin-right:8px; display:inline-block; vertical-align:middle;"></i> Integrasi Database
+                </button>
+              </li>
+            </ul>
           </div>
 
-          <div class="super-admin-only" style="margin-bottom: 2rem;">
-            <h3>Google Sheets Integration</h3>
-            <p class="text-muted mb-4">Paste the Google Apps Script Web App URL below to sync data.</p>
-            <div class="form-group">
-              <label>API URL</label>
-              <input type="text" id="settingApiUrl" placeholder="https://script.google.com/macros/s/...">
-            </div>
-          </div>
-          
-          <h3>Business Logo</h3>
-          <p class="text-muted mb-4">Upload business logo for invoices, login page, and sidebar.</p>
-          
-          <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
-            <div id="settingsLogoPreview" style="width: 100px; height: 100px; border-radius: 8px; border: 1px dashed var(--color-border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: rgba(0,0,0,0.1);">
-              <span class="text-muted" style="font-size: 12px; text-align: center; padding: 4px;">No Logo</span>
-            </div>
-            <div>
-              <input type="file" id="settingLogoInput" accept="image/*" style="display: none;" onchange="app.saveLogo(event)">
-              <div style="display: flex; gap: 8px;">
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('settingLogoInput').click()"><i data-lucide="upload"></i> Upload Logo</button>
-                <button class="btn btn-danger btn-sm" onclick="app.removeLogo()"><i data-lucide="trash-2"></i> Remove</button>
+          <!-- Right Content Pane -->
+          <div style="flex: 2 1 450px; min-width: 320px; display: flex; flex-direction: column; justify-content: space-between; min-height: 380px;">
+            <div class="tab-content" id="settingsTabContent">
+              <!-- SUBMENU: PROFIL BISNIS -->
+              <div class="settings-tab-pane" id="tab-business" style="display: block;">
+                <h3 style="margin-bottom: 1.5rem; font-size: 16px; font-weight: 600;">Profil & Logo Bisnis</h3>
+                
+                <div class="form-group mb-4">
+                  <label>Nomor WhatsApp / Kontak Bisnis</label>
+                  <input type="text" id="settingCompanyPhone" class="form-control" placeholder="Contoh: +62 812-xxxx-xxxx" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%;">
+                  <p class="text-muted" style="font-size: 11px; margin-top: 4px;">Nomor kontak bisnis yang akan ditampilkan pada bagian atas (header) PDF Invoice.</p>
+                </div>
+
+                <div class="form-group mb-4">
+                  <label>Logo Bisnis</label>
+                  <p class="text-muted" style="font-size: 11px; margin-bottom: 1rem;">Unggah logo bisnis untuk struk katering, invoice, dan halaman login.</p>
+                  
+                  <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+                    <div id="settingsLogoPreview" style="width: 80px; height: 80px; border-radius: 8px; border: 1px dashed var(--color-border); display: flex; align-items: center; justify-content: center; overflow: hidden; background: rgba(0,0,0,0.1);">
+                      <span class="text-muted" style="font-size: 11px; text-align: center; padding: 4px;">No Logo</span>
+                    </div>
+                    <div>
+                      <input type="file" id="settingLogoInput" accept="image/*" style="display: none;" onchange="app.saveLogo(event)">
+                      <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('settingLogoInput').click()"><i data-lucide="upload"></i> Upload Logo</button>
+                        <button class="btn btn-danger btn-sm" onclick="app.removeLogo()"><i data-lucide="trash-2"></i> Remove</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <label style="font-size: 12px; margin-top: 1rem;">Atau Gunakan Link / URL Gambar:</label>
+                  <div style="display: flex; gap: 8px;">
+                    <input type="text" id="settingLogoUrl" placeholder="https://drive.google.com/file/d/... or image URL" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px;">
+                    <button class="btn btn-primary btn-sm" onclick="app.saveLogoUrl()" style="white-space: nowrap; height: 38px;"><i data-lucide="save"></i> Simpan URL</button>
+                  </div>
+                </div>
               </div>
-              <p class="text-muted mt-2" style="font-size: 11px;">Recommended square or landscape PNG/JPG format.</p>
+
+              <!-- SUBMENU: METODE PEMBAYARAN -->
+              <div class="settings-tab-pane" id="tab-payment" style="display: none;">
+                <h3 style="margin-bottom: 1.5rem; font-size: 16px; font-weight: 600;">Informasi Rekening Pembayaran</h3>
+                <div class="form-group">
+                  <label>Rincian Rekening Bank & E-Wallet</label>
+                  <textarea id="settingPaymentAccounts" class="form-control" rows="5" placeholder="Contoh:&#10;BCA: 123-456-7890 a.n. Katering&#10;Mandiri: 098-765-4321 a.n. Katering" style="background: rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: var(--color-text); padding: 10px; width: 100%; font-family: monospace; font-size: 13px;"></textarea>
+                  <p class="text-muted" style="font-size: 11px; margin-top: 6px;">Informasi ini akan tercetak secara otomatis di bagian bawah invoice katering. Tekan enter untuk menambahkan baris baru.</p>
+                </div>
+              </div>
+
+              <!-- SUBMENU: BERBAGI KALENDER -->
+              <div class="settings-tab-pane" id="tab-calendar" style="display: none;">
+                <h3 style="margin-bottom: 0.75rem; font-size: 16px; font-weight: 600;">Berbagi Kalender Google</h3>
+                <p class="text-muted" style="font-size: 11px; margin-bottom: 1rem;">Sinkronisasikan Kalender Katering ini ke akun Google eksternal secara otomatis.</p>
+
+                <!-- Sync Status Panel -->
+                <div id="calendarSyncStatus" style="border-radius: 10px; padding: 12px 14px; margin-bottom: 1.25rem; background: rgba(0,0,0,0.12); border: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px;">
+                  <div id="calendarSyncDot" style="width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: #64748b;"></div>
+                  <div style="flex: 1;">
+                    <div id="calendarSyncLabel" style="font-size: 12px; font-weight: 600; color: var(--color-text);">Memeriksa status sinkronisasi...</div>
+                    <div id="calendarSyncDesc" style="font-size: 11px; color: var(--color-text-muted); margin-top: 2px;"></div>
+                  </div>
+                  <button class="btn btn-secondary btn-xs" onclick="app.checkCalendarSyncStatus()" title="Periksa Ulang" style="padding: 3px 8px; font-size: 10px; height: 24px; display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                    <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Cek
+                  </button>
+                </div>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 1.5rem;">
+                  <input type="email" id="shareCalendarEmail" placeholder="contoh: kustomer@gmail.com" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px; font-size: 13px;">
+                  <button class="btn btn-primary btn-sm" onclick="app.addCalendarShare()" style="white-space: nowrap; height: 38px;"><i data-lucide="share-2"></i> Bagikan</button>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <label style="font-weight: 600; margin: 0; font-size: 12px;">Daftar Akun Terdaftar:</label>
+                  <button class="btn btn-secondary btn-xs" onclick="app.loadCalendarShares()" title="Segarkan" style="padding: 2px 6px; font-size: 10px; height: 20px; display: flex; align-items: center; gap: 4px;">
+                    <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Segarkan
+                  </button>
+                </div>
+                <div id="calendarShareList" style="background: rgba(0,0,0,0.1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; max-height: 180px; overflow-y: auto;">
+                  <div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">Memuat...</div>
+                </div>
+              </div>
+
+              <!-- SUBMENU: INTEGRASI DATABASE (Super Admin Only) -->
+              <div class="settings-tab-pane super-admin-only" id="tab-database" style="display: none;">
+                <h3 style="margin-bottom: 0.5rem; font-size: 16px; font-weight: 600;">Integrasi Database</h3>
+                <!-- Database Aktif Badge -->
+                <div style="margin-bottom: 1.5rem;">
+                  <span id="activeDatabaseBadge" style="background: var(--color-primary); color: white; padding: 6px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; display: inline-block;">
+                    Database Aktif: Memuat...
+                  </span>
+                </div>
+
+                <div class="form-group mb-3">
+                  <label>Pilih Tipe Database</label>
+                  <select id="settingDbType" onchange="app.toggleDbSettingsVisibility()" style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; width: 100%; height: 38px;">
+                    <option value="sheets">Google Sheets (Slow)</option>
+                    <option value="supabase">Supabase (Fast & Secure)</option>
+                  </select>
+                </div>
+
+                <!-- Google Apps Script API URL (SELALU TAMPIL - dibutuhkan untuk Google Calendar) -->
+                <div class="form-group mb-3">
+                  <label>Google Apps Script API URL</label>
+                  <input type="text" id="settingApiUrl" placeholder="https://script.google.com/macros/s/..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; width: 100%;">
+                  <p class="text-muted" style="font-size: 10px; margin-top: 4px;">
+                    <i data-lucide="info" style="width: 11px; height: 11px; vertical-align: middle;"></i>
+                    Wajib diisi untuk sinkronisasi Google Calendar, terlepas dari tipe database yang dipilih.
+                  </p>
+                </div>
+
+                <!-- Supabase Config (hanya tampil jika Supabase dipilih) -->
+                <div id="configSupabase" style="display: none;">
+                  <div class="form-group mb-3">
+                    <label>Supabase Project URL</label>
+                    <input type="text" id="settingSupabaseUrl" placeholder="https://xxxx.supabase.co" style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; width: 100%;">
+                  </div>
+                  <div class="form-group mb-3">
+                    <label>Supabase Anon Key</label>
+                    <input type="password" id="settingSupabaseKey" placeholder="eyJhbGciOi..." style="background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; width: 100%;">
+                  </div>
+                </div>
+
+                <!-- Export SQL Backup -->
+                <div class="form-group mt-4" style="border-top: 1px dashed var(--color-border); padding-top: 1.25rem;">
+                  <label style="font-weight: 600; font-size: 12px;">Migrasi Data Sheets ke Supabase</label>
+                  <p class="text-muted" style="font-size: 11px; margin-bottom: 0.75rem;">Ekspor data Google Sheets Anda saat ini menjadi berkas SQL untuk di-import langsung di Supabase SQL Editor.</p>
+                  <button class="btn btn-warning btn-sm" onclick="app.exportDatabaseToSQL()" style="display: flex; align-items: center; gap: 6px;"><i data-lucide="download"></i> Ekspor data ke SQL Backup</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global Settings Save Button -->
+            <div style="margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+              <button class="btn btn-primary" id="btnSaveSettings" style="width: 100%;">Simpan Semua Pengaturan</button>
             </div>
           </div>
-
-          <div class="form-group" style="margin-top: 1rem;">
-            <label>Or Use Google Drive Link / Logo URL:</label>
-            <div style="display: flex; gap: 8px;">
-              <input type="text" id="settingLogoUrl" placeholder="https://drive.google.com/file/d/... or image URL" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px;">
-              <button class="btn btn-primary btn-sm" onclick="app.saveLogoUrl()" style="white-space: nowrap; height: 38px;"><i data-lucide="save"></i> Save URL</button>
-            </div>
-            <p class="text-muted mt-1" style="font-size: 11px;">Supports Google Drive share links (will be automatically converted to direct image link in real-time).</p>
-          </div>
-
-          <!-- Google Calendar Sharing (Admin & Super Admin only) -->
-          <div class="admin-only" style="margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
-            <h3>Bagi Kalender Google</h3>
-            <p class="text-muted mb-3" style="font-size: 11px;">Masukkan email akun Google baru untuk menyinkronkan Kalender Katering ini ke Google Calendar mereka secara otomatis.</p>
-            
-            <div style="display: flex; gap: 8px; margin-bottom: 1.25rem;">
-              <input type="email" id="shareCalendarEmail" placeholder="contoh: kustomer@gmail.com" style="flex: 1; margin: 0; background: rgba(0,0,0,0.2); border: 1px solid var(--color-border); border-radius: 8px; color: var(--color-text); padding: 8px 12px; height: 38px; font-size: 13px;">
-              <button class="btn btn-primary btn-sm" onclick="app.addCalendarShare()" style="white-space: nowrap; height: 38px;"><i data-lucide="share-2"></i> Bagi Kalender</button>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-              <label style="font-weight: 600; margin: 0; font-size: 12px;">Daftar Akun Google yang Disinkronkan:</label>
-              <button class="btn btn-secondary btn-xs" onclick="app.loadCalendarShares()" title="Segarkan Daftar" style="padding: 2px 6px; font-size: 10px; height: 20px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="refresh-cw" style="width: 10px; height: 10px;"></i> Segarkan
-              </button>
-            </div>
-            <div id="calendarShareList" style="background: rgba(0,0,0,0.1); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px; max-height: 180px; overflow-y: auto;">
-              <div class="text-muted" style="font-size: 11px; text-align: center; padding: 10px;">Memuat daftar email...</div>
-            </div>
-          </div>
-
-          <div style="margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
-            <button class="btn btn-primary" id="btnSaveSettings" style="width: 100%;">Save Settings</button>
-          </div>
+        </div>
 
           <div class="mt-6 p-4 super-admin-only" style="background: rgba(255,255,255,0.05); border-radius: 8px;">
             <p><i data-lucide="info" style="display:inline-block; vertical-align:middle; width:16px; height:16px;"></i> Open the <code>Google_Sheets_Tutorial.md</code> file for a complete guide on how to get this URL.</p>
@@ -2127,7 +2214,8 @@
 
   <!-- Bootstrap 5 JS Bundle -->
   <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script defer src="logo_base64.js?v=20260719_v195"></script>
-  <script defer src="app.js?v=20260719_v195"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="logo_base64.js?v=20260804_v210"></script>
+  <script defer src="app.js?v=20260804_v211"></script>
 </body>
 </html>
