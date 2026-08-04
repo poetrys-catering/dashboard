@@ -8676,12 +8676,33 @@ const app = {
       }
       input.placeholder = 'DD-MM-YYYY';
 
+      const positionCalendar = (calEl, inputEl) => {
+        const rect = inputEl.getBoundingClientRect();
+        const calH = calEl.offsetHeight || 280;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        let top = rect.bottom + 4;
+        if (spaceBelow < calH + 8 && rect.top > calH + 8) {
+          top = rect.top - calH - 4; // buka ke atas jika tidak cukup ruang
+        }
+        let left = rect.left;
+        if (left + 245 > window.innerWidth) {
+          left = window.innerWidth - 250;
+        }
+        calEl.style.top = top + 'px';
+        calEl.style.left = left + 'px';
+      };
+
       const fp = flatpickr(input, {
         dateFormat: 'd-m-Y',
         allowInput: true,
         clickOpens: true,
-        appendTo: document.body,
-        static: false,
+        positionElement: input,
+        onReady: (_, __, fpInstance) => {
+          positionCalendar(fpInstance.calendarContainer, input);
+        },
+        onOpen: (_, __, fpInstance) => {
+          positionCalendar(fpInstance.calendarContainer, input);
+        },
         onChange: (selectedDates, dateStr) => {
           input.value = dateStr;
           input.dispatchEvent(new Event('input', { bubbles: true }));
