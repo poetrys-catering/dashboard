@@ -8681,17 +8681,16 @@ const app = {
         const calH = calEl.offsetHeight || 260;
         const calW = 245;
 
-        // Selalu coba buka ke ATAS agar tidak menutupi tabel di bawah
-        let top;
-        if (rect.top >= calH + 8) {
-          // Ada ruang di atas — buka ke atas
-          top = rect.top - calH - 4;
-        } else {
-          // Tidak cukup ruang di atas — terpaksa buka ke bawah
-          top = rect.bottom + 4;
-        }
+        // Cari filterbar wrapper — kalender tampil di atasnya agar tidak menutupi tabel
+        const filterbarWrapper = inputEl.closest('.invoice-filterbar-wrapper');
+        const wrapperTop = filterbarWrapper 
+          ? filterbarWrapper.getBoundingClientRect().top 
+          : rect.top;
 
-        // Pastikan kalender tidak keluar dari sisi kanan layar
+        // Kalender selalu tampil di ATAS filter bar, minimal 4px di atas wrapper
+        const top = Math.max(8, wrapperTop - calH - 4);
+
+        // Pastikan tidak keluar dari sisi kanan layar
         let left = rect.left;
         if (left + calW > window.innerWidth) {
           left = window.innerWidth - calW - 8;
