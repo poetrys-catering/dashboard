@@ -8697,8 +8697,8 @@ const app = {
         }
         if (left < 8) left = 8;
 
-        calEl.style.top = top + 'px';
-        calEl.style.left = left + 'px';
+        calEl.style.setProperty('top', top + 'px', 'important');
+        calEl.style.setProperty('left', left + 'px', 'important');
       };
 
       const fp = flatpickr(input, {
@@ -8707,10 +8707,11 @@ const app = {
         clickOpens: true,
         positionElement: input,
         onReady: (_, __, fpInstance) => {
-          positionCalendar(fpInstance.calendarContainer, input);
+          requestAnimationFrame(() => positionCalendar(fpInstance.calendarContainer, input));
         },
         onOpen: (_, __, fpInstance) => {
-          positionCalendar(fpInstance.calendarContainer, input);
+          // Jalankan setelah flatpickr selesai positioning-nya sendiri
+          requestAnimationFrame(() => positionCalendar(fpInstance.calendarContainer, input));
         },
         onChange: (selectedDates, dateStr) => {
           input.value = dateStr;
