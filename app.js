@@ -2236,7 +2236,7 @@ const app = {
       if (unpaidInvoices.length === 0) {
         tpUnpaidInv.innerHTML = '<em style="color: var(--color-text-muted);">Luar biasa, semua invoice lunas!</em>';
       } else {
-        const sortedUnpaid = [...unpaidInvoices].sort((a,b) => new Date(a.cateringDate) - new Date(b.cateringDate));
+        const sortedUnpaid = [...unpaidInvoices].sort((a,b) => new Date(this.getLocalYMD(a.cateringDate)) - new Date(this.getLocalYMD(b.cateringDate)));
         const list = sortedUnpaid.slice(0, 5).map(i => {
           const p = Number(i.paidAmount) || 0;
           const r = Number(i.totalAmount) - p;
@@ -2261,11 +2261,11 @@ const app = {
       
       const futureSchedules = this.data.invoices.filter(inv => {
         if (!inv.cateringDate) return false;
-        const cDate = new Date(inv.cateringDate);
+        const cDate = new Date(this.getLocalYMD(inv.cateringDate));
         return cDate >= today;
       });
       
-      futureSchedules.sort((a, b) => new Date(a.cateringDate) - new Date(b.cateringDate));
+      futureSchedules.sort((a, b) => new Date(this.getLocalYMD(a.cateringDate)) - new Date(this.getLocalYMD(b.cateringDate)));
       const nearest = futureSchedules.slice(0, 5);
       
       if (nearest.length === 0) {
@@ -2306,7 +2306,7 @@ const app = {
     dueTable.innerHTML = '';
     
     const unpaid = this.data.invoices.filter(i => i.status !== 'Lunas' && i.cateringDate);
-    const sortedDue = unpaid.sort((a, b) => new Date(a.cateringDate) - new Date(b.cateringDate)).slice(0, 5);
+    const sortedDue = unpaid.sort((a, b) => new Date(this.getLocalYMD(a.cateringDate)) - new Date(this.getLocalYMD(b.cateringDate))).slice(0, 5);
     
     if (sortedDue.length === 0) {
       dueTable.innerHTML = `
@@ -2492,7 +2492,8 @@ const app = {
 
     const thisYearInvoices = this.data.invoices.filter(inv => {
       if (!inv.createdAt) return false;
-      return inv.createdAt.substring(0, 4) === currentYearStr;
+      const dateStr = this.getLocalYMD(inv.createdAt);
+      return dateStr.substring(0, 4) === currentYearStr;
     });
 
     let totalOmset = 0;
@@ -2517,7 +2518,8 @@ const app = {
       }
 
       // Group by month
-      const monthIndex = parseInt(inv.createdAt.substring(5, 7), 10) - 1;
+      const dateStr = this.getLocalYMD(inv.createdAt);
+      const monthIndex = parseInt(dateStr.substring(5, 7), 10) - 1;
       if (monthIndex >= 0 && monthIndex < 12) {
         monthlyPaid[monthIndex] += paid;
         monthlyUnpaid[monthIndex] += (remaining > 0 ? remaining : 0);
@@ -3185,11 +3187,10 @@ const app = {
       // c. Date range filter (berdasarkan tanggal katering)
       const dateFrom = this.invoiceState.filterDateFrom;
       const dateTo = this.invoiceState.filterDateTo;
-      if (dateFrom && inv.cateringDate) {
-        if (inv.cateringDate < dateFrom) return false;
-      }
-      if (dateTo && inv.cateringDate) {
-        if (inv.cateringDate > dateTo) return false;
+      if (inv.cateringDate) {
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (dateFrom && invDateStr < dateFrom) return false;
+        if (dateTo && invDateStr > dateTo) return false;
       }
 
       return true;
@@ -4116,7 +4117,7 @@ const app = {
         const paid = Number(inv.paidAmount) || 0;
         const total = Number(inv.totalAmount) || 0;
         const isLunas = inv.status === 'Lunas' || (paid >= total && total > 0);
-        const cDate = inv.cateringDate.substring(0, 10);
+        const cDate = this.getLocalYMD(inv.cateringDate);
         
         // If unpaid and catering date is today or in the past
         if (!isLunas && cDate <= todayStr) {
@@ -4157,7 +4158,7 @@ const app = {
       if (!sch.date) return;
       if (sch.type !== 'Booking' && sch.type !== 'Meeting') return;
 
-      const eventDateStr = sch.date.substring(0, 10);
+      const eventDateStr = this.getLocalYMD(sch.date);
       const diff = getDaysDiff(eventDateStr, todayStr);
 
       if (diff >= -1 && diff <= 3) {
@@ -6347,7 +6348,8 @@ const app = {
   renderReports() {
     const filteredInvoices = this.data.invoices.filter(inv => {
       if (!inv.cateringDate) return false;
-      const invDateStr = inv.cateringDate.substring(0, 10);
+      const invDateStr = this.getLocalYMD(inv.cateringDate);
+      if (!invDateStr) return false;
       
       if (this.reportState.filterType === 'year') {
         const year = parseInt(invDateStr.substring(0, 4));
@@ -6360,7 +6362,9 @@ const app = {
     const monthlyGroups = {};
     
     filteredInvoices.forEach(inv => {
-      const monthStr = inv.cateringDate.substring(0, 7);
+      const invDateStr = this.getLocalYMD(inv.cateringDate);
+      if (!invDateStr) return;
+      const monthStr = invDateStr.substring(0, 7);
       if (!monthlyGroups[monthStr]) {
         monthlyGroups[monthStr] = {
           monthKey: monthStr,
@@ -6523,7 +6527,8 @@ const app = {
       monthlyGroups = {};
       this.data.invoices.forEach(inv => {
         if (!inv.cateringDate) return;
-        const invDateStr = inv.cateringDate.substring(0, 10);
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (!invDateStr) return;
         
         let match = false;
         if (this.reportState.filterType === 'year') {
@@ -6918,7 +6923,8 @@ const app = {
     try {
       const filteredInvoices = this.data.invoices.filter(inv => {
         if (!inv.cateringDate) return false;
-        const invDateStr = inv.cateringDate.substring(0, 10);
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (!invDateStr) return false;
         
         if (this.reportState.filterType === 'year') {
           const year = parseInt(invDateStr.substring(0, 4));
@@ -6931,7 +6937,9 @@ const app = {
       const monthlyGroups = {};
       
       filteredInvoices.forEach(inv => {
-        const monthStr = inv.cateringDate.substring(0, 7);
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (!invDateStr) return;
+        const monthStr = invDateStr.substring(0, 7);
         if (!monthlyGroups[monthStr]) {
           monthlyGroups[monthStr] = {
             monthKey: monthStr,
@@ -7121,7 +7129,8 @@ const app = {
       // 1. Filter Invoices
       const filteredInvoices = this.data.invoices.filter(inv => {
         if (!inv.cateringDate) return false;
-        const invDateStr = inv.cateringDate.substring(0, 10);
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (!invDateStr) return false;
         
         if (this.reportState.filterType === 'year') {
           const year = parseInt(invDateStr.substring(0, 4));
@@ -7134,7 +7143,9 @@ const app = {
       // 2. Aggregate Monthly Data
       const monthlyGroups = {};
       filteredInvoices.forEach(inv => {
-        const monthStr = inv.cateringDate.substring(0, 7);
+        const invDateStr = this.getLocalYMD(inv.cateringDate);
+        if (!invDateStr) return;
+        const monthStr = invDateStr.substring(0, 7);
         if (!monthlyGroups[monthStr]) {
           monthlyGroups[monthStr] = {
             monthKey: monthStr,
@@ -8677,6 +8688,7 @@ const app = {
       input.placeholder = 'DD-MM-YYYY';
 
       const positionCalendar = (calEl, inputEl) => {
+        if (!calEl) return;
         const rect = inputEl.getBoundingClientRect();
         const calH = calEl.offsetHeight || 210;
         const calW = 210;
@@ -8709,6 +8721,7 @@ const app = {
         dateFormat: 'd-m-Y',
         allowInput: true,
         clickOpens: true,
+        disableMobile: true,
         positionElement: input,
         onReady: (_, __, fpInstance) => {
           requestAnimationFrame(() => positionCalendar(fpInstance.calendarContainer, input));
